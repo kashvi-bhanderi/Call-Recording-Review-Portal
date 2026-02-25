@@ -22,7 +22,7 @@ class User(AbstractUser):
 
     role = models.SmallIntegerField(
     choices=ROLE_CHOICES,
-    default=2
+    default= 0,
 )
     accessible_languages = models.ManyToManyField(Language)
 
