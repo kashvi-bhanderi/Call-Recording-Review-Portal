@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import axiosInstance, { setAuthToken } from '../api/axiosInstance';
 import './Login.css'; // optional for styling if you want custom CSS
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false); 
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -47,45 +49,86 @@ const Login = () => {
     }
   };
 
-  return (
+   return (
+
     <div className="login-container">
+
 
       <form className="login-form" onSubmit={handleLogin}>
 
+
         <h2>Sign In</h2>
 
+
         {error && (
+
           <p className="error">{error}</p>
+
         )}
 
-        <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-        />
+
 
         <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+
+          type="text"
+
+          placeholder="Username"
+
+          value={username}
+
+          onChange={(e) => setUsername(e.target.value)}
+
           required
+
         />
+
+
+        <div className="password-field">
+
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          <span
+            className="toggle-password"
+            onClick={() => setShowPassword(!showPassword)}
+          >
+
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
+
+          </span>
+
+        </div>
+
+
 
         <button type="submit">
+
           Login
+
         </button>
 
+
+
         <p className="forgot-password">
+
           Forgot Password?
+
         </p>
+
 
       </form>
 
+
     </div>
+
   );
+
 };
+
 
 export default Login;
