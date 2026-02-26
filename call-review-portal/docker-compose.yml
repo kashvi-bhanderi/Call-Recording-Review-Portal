@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network  # Add this line to connect db to the app-network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com  # Set your admin email
+      PGADMIN_DEFAULT_PASSWORD: password  # Set your admin password
+    ports:
+      - "8080:80"  # Exposes pgAdmin on localhost:8080
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - app-network  # Ensure pgAdmin is on the same network as db
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  app-network:
+    driver: bridge  # Ensure both containers are on the same network
