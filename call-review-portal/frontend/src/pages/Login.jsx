@@ -114,12 +114,9 @@ const Login = () => {
 
 
 
-        <p className="forgot-password">
-
-          Forgot Password?
-
+        <p className="forgot-password" onClick={() => window.location.href="/forgot-password"}>
+        Forgot Password?
         </p>
-
 
       </form>
 

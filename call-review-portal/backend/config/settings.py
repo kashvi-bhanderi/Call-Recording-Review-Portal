@@ -15,9 +15,15 @@ from datetime import timedelta
 
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'admin@callreview.com'
+DEFAULT_FROM_EMAIL = 'noreply@example.com'
 
-
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.sendgrid.net'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'apikey'
+# EMAIL_HOST_PASSWORD = 'YOUR_SENDGRID_API_KEY'
+# DEFAULT_FROM_EMAIL = 'noreply@example.com'
 REST_FRAMEWORK = {
 
 'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -37,7 +43,8 @@ SIMPLE_JWT = {
 'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 
 'AUTH_HEADER_TYPES': ('Bearer',),
-
+ 
+ 'UPDATE_LAST_LOGIN': True,
 }
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -67,6 +74,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'accounts',
     'corsheaders',
+    'django_rest_passwordreset',
 ]
 
 MIDDLEWARE = [
@@ -86,7 +94,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],  
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -145,12 +153,12 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
+USE_TZ = True
 
 USE_I18N = True
 
-USE_TZ = True
+
 
 
 # Static files (CSS, JavaScript, Images)

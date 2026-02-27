@@ -75,7 +75,7 @@ class UserAdmin(BaseUserAdmin):
                 Username: {obj.username}
                 Password: {password}
 
-                Login: http://localhost:3000/login
+                Login: http://localhost:5173
                 """,
 
                 from_email=None,
