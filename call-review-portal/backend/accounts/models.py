@@ -24,6 +24,7 @@ class User(AbstractUser):
     choices=ROLE_CHOICES,
     default= 0,
 )
+    email = models.EmailField(unique=True)
     accessible_languages = models.ManyToManyField(Language)
 
     created = models.DateTimeField(auto_now_add=True)
