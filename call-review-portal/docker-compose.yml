@@ -14,19 +14,50 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - app-network  # Add this line to connect db to the app-network
+      - app-network
 
   pgadmin:
     image: dpage/pgadmin4
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com  # Set your admin email
-      PGADMIN_DEFAULT_PASSWORD: password  # Set your admin password
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: password
     ports:
-      - "8080:80"  # Exposes pgAdmin on localhost:8080
+      - "8080:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     networks:
-      - app-network  # Ensure pgAdmin is on the same network as db
+      - app-network
+
+  backend:
+    build: ./backend
+    container_name: django-dev
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_NAME=db
+      - DATABASE_USER=user
+      - DATABASE_PASSWORD=password
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+    networks:
+      - app-network
+
+  frontend:
+    build: ./frontend
+    container_name: react-dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
@@ -34,4 +65,4 @@ volumes:
 
 networks:
   app-network:
-    driver: bridge  # Ensure both containers are on the same network
+    driver: bridge

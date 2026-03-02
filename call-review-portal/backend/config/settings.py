@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
-
+import os
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # DEFAULT_FROM_EMAIL = 'noreply@example.com'
 
@@ -61,7 +61,6 @@ SECRET_KEY = 'django-insecure-#()n#+k(=52$)8zr=s1ei$ob#7x+00)j!b09$1x=ir%7-a422r
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -121,18 +120,28 @@ AUTH_USER_MODEL = 'accounts.User'
 # }
 
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django_tenants.postgresql_backend',
+#         'NAME': 'db',
+#         'USER': 'user',
+#         'PASSWORD': 'password',
+#         'HOST': '127.0.0.1',
+#         'PORT': '5432',
+#     }
+# }
 DATABASES = {
     'default': {
-        'ENGINE': 'django_tenants.postgresql_backend',
-        'NAME': 'db',
-        'USER': 'user',
-        'PASSWORD': 'password',
-        'HOST': '127.0.0.1',
-        'PORT': '5432',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DATABASE_NAME', 'db'),
+        'USER': os.environ.get('DATABASE_USER', 'user'),
+        'PASSWORD': os.environ.get('DATABASE_PASSWORD', 'password'),
+        'HOST': os.environ.get('DATABASE_HOST', 'db'),
+        'PORT': os.environ.get('DATABASE_PORT', 5432),
     }
 }
-# Password validation
-# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
+
+ALLOWED_HOSTS = ['*']
 
 AUTH_PASSWORD_VALIDATORS = [
     {
