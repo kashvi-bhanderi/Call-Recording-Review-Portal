@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import axiosInstance, { setAuthToken } from '../api/axiosInstance';
-import './Login.css'; // optional for styling if you want custom CSS
+import axiosInstance from '../api/axiosInstance';
+import './Login.css'; 
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const Login = () => {
@@ -11,15 +11,14 @@ const Login = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    console.log("LOGIN CLICKED");
+
     try {
       const response = await axiosInstance.post('/auth/login/', {
         username,
         password
       });
 
-      // make sure backend returns role
-      const { access, refresh, role } = response.data;
+      const { role } = response.data;
 
       const roleMap = {
         1: 'consultant',
@@ -28,15 +27,10 @@ const Login = () => {
 
       const userRole = roleMap[role];
 
-      // Store tokens and role
-      localStorage.setItem('access_token', access);
-      localStorage.setItem('refresh_token', refresh);
+      //  STORE ONLY ROLE
       localStorage.setItem('role', userRole);
 
-      // Set token in axios header
-      setAuthToken(access);
 
-      // Redirect based on role
       if (userRole === 'consultant') {
         window.location.href = '/consultant';
       } 
@@ -47,8 +41,7 @@ const Login = () => {
     } catch (err) {
       setError('Invalid credentials');
     }
-  };
-
+};
    return (
 
     <div className="login-container">

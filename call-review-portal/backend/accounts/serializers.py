@@ -11,23 +11,24 @@ from django.conf import settings
 User = get_user_model()
 
 
-
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
 
-        # Add custom claims
-        token['role'] = user.role  # assuming your User model has a 'role' field
+        # Add role into token payload (optional but good)
+        token['role'] = user.role
+
         return token
 
     def validate(self, attrs):
         data = super().validate(attrs)
 
-        # Add role to response data
+        # Add role in response body
         data['role'] = self.user.role
+
         return data
-    
 
 
 class ForgotPasswordSerializer(serializers.Serializer):

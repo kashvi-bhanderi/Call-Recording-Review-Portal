@@ -25,16 +25,21 @@ EMAIL_HOST_USER = config("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
 
+# REST_FRAMEWORK = {
+
+# 'DEFAULT_AUTHENTICATION_CLASSES': (
+
+# 'rest_framework_simplejwt.authentication.JWTAuthentication',
+
+# ),
+
+
+# }
 REST_FRAMEWORK = {
-
-'DEFAULT_AUTHENTICATION_CLASSES': (
-
-'rest_framework_simplejwt.authentication.JWTAuthentication',
-
-),
-
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'accounts.authentication.CookieJWTAuthentication',
+    ),
 }
-
 from datetime import timedelta
 
 SIMPLE_JWT = {
@@ -175,4 +180,8 @@ USE_I18N = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
+
+CORS_ALLOW_CREDENTIALS = True
