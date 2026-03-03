@@ -28,36 +28,36 @@ services:
     networks:
       - app-network
 
-  backend:
-    build: ./backend
-    container_name: django-dev
-    volumes:
-      - ./backend:/app
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-    environment:
-      - DATABASE_NAME=db
-      - DATABASE_USER=user
-      - DATABASE_PASSWORD=password
-      - DATABASE_HOST=db
-      - DATABASE_PORT=5432
-    networks:
-      - app-network
+  # backend:
+  #   build: ./backend
+  #   container_name: django-dev
+  #   volumes:
+  #     - ./backend:/app
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - db
+  #   environment:
+  #     - DATABASE_NAME=db
+  #     - DATABASE_USER=user
+  #     - DATABASE_PASSWORD=password
+  #     - DATABASE_HOST=db
+  #     - DATABASE_PORT=5432
+  #   networks:
+  #     - app-network
 
-  frontend:
-    build: ./frontend
-    container_name: react-dev
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-    networks:
-      - app-network
+  # frontend:
+  #   build: ./frontend
+  #   container_name: react-dev
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #   ports:
+  #     - "5173:5173"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - app-network
 
 volumes:
   postgres_data:

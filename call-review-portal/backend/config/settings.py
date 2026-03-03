@@ -120,28 +120,28 @@ AUTH_USER_MODEL = 'accounts.User'
 # }
 
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django_tenants.postgresql_backend',
-#         'NAME': 'db',
-#         'USER': 'user',
-#         'PASSWORD': 'password',
-#         'HOST': '127.0.0.1',
-#         'PORT': '5432',
-#     }
-# }
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DATABASE_NAME', 'db'),
-        'USER': os.environ.get('DATABASE_USER', 'user'),
-        'PASSWORD': os.environ.get('DATABASE_PASSWORD', 'password'),
-        'HOST': os.environ.get('DATABASE_HOST', 'db'),
-        'PORT': os.environ.get('DATABASE_PORT', 5432),
+        'ENGINE': 'django_tenants.postgresql_backend',
+        'NAME': 'db',
+        'USER': 'user',
+        'PASSWORD': 'password',
+        'HOST': '127.0.0.1',
+        'PORT': '5432',
     }
 }
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.environ.get('DATABASE_NAME', 'db'),
+#         'USER': os.environ.get('DATABASE_USER', 'user'),
+#         'PASSWORD': os.environ.get('DATABASE_PASSWORD', 'password'),
+#         'HOST': os.environ.get('DATABASE_HOST', 'db'),
+#         'PORT': os.environ.get('DATABASE_PORT', 5432),
+#     }
+# }
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = []
 
 AUTH_PASSWORD_VALIDATORS = [
     {
