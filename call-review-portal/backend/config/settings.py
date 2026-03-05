@@ -39,7 +39,14 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'accounts.authentication.CookieJWTAuthentication',
     ),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 10,
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend"
+    ]
 }
+
+
 from datetime import timedelta
 
 SIMPLE_JWT = {
@@ -79,7 +86,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'accounts',
     'corsheaders',
+    'calls',
+    'rest_framework',
     'django_rest_passwordreset',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -181,6 +191,9 @@ USE_I18N = True
 
 STATIC_URL = 'static/'
 CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
+CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
 ]
 
