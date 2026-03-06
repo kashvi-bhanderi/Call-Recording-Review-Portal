@@ -54,8 +54,8 @@ class Call(models.Model):
     }
 
     uuid = models.TextField(unique=True, db_index=True)
-    schema_name = models.CharField(max_length=100, db_index=True)
-    phone_number = models.CharField(max_length=20, db_index=True)
+    schema_name = models.TextField(db_index=True)
+    phone_number = models.TextField(db_index=True)
     template_id = models.IntegerField(db_index=True)
     duration = models.IntegerField(null=True, blank=True)
     language = models.ForeignKey(Language, on_delete=models.PROTECT, db_index=True)
