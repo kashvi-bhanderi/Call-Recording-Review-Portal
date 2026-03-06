@@ -5,7 +5,7 @@ from .views import (
     ApproveCallView,
     RejectCallView
 )
-from .views import DashboardCallView
+from .views import DashboardCallView, CallFilterOptionsView
 
 
 urlpatterns = [
@@ -14,5 +14,6 @@ urlpatterns = [
     path("<int:pk>/approve/", ApproveCallView.as_view()),
     path("<int:pk>/reject/", RejectCallView.as_view()),
     path("dashboard/", DashboardCallView.as_view(), name="dashboard-calls"),
+    path("filter-options/", CallFilterOptionsView.as_view(), name="call-filter-options"),
 ]
 

@@ -31,6 +31,7 @@ class EvaluationCallRatingSerializer(serializers.ModelSerializer):
 
 
 class CallSerializer(serializers.ModelSerializer):
+    
     class Meta:
         model = Call
         fields = "__all__"
@@ -39,6 +40,10 @@ class DashboardCallSerializer(serializers.ModelSerializer):
     language_name = serializers.CharField(source="language.language_name", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     overall_rating = serializers.SerializerMethodField()
+    duration_display = serializers.SerializerMethodField()
+
+    rated_by_name = serializers.CharField(source="rated_by.username", read_only=True)
+    tags_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Call
@@ -50,9 +55,14 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             "phone_number",
             "uuid",
             "created",
+            "duration_display",
             "status_display",
             "overall_rating",
+            "rated_by_name",
+            "tags_display",
         ]
+    def get_tags_display(self, obj):
+       return ", ".join(tag.name for tag in obj.tags.all())
 
     def get_overall_rating(self, obj):
         ratings = obj.evaluationcallrating_set.all()
@@ -60,3 +70,10 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             total = sum(r.rating for r in ratings)
             return round(total / ratings.count(), 2)
         return None
+
+    def get_duration_display(self, obj):
+        if obj.duration is None:
+            return "-"
+        minutes = obj.duration // 60
+        seconds = obj.duration % 60
+        return f"{minutes}m {seconds}s"

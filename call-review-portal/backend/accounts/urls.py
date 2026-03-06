@@ -9,5 +9,6 @@ urlpatterns = [
     path('auth/login/', CustomTokenObtainPairView.as_view(), name='login'),
     path('auth/refresh/', CookieTokenRefreshView.as_view(), name='refresh'),
     path('auth/me/', MeView.as_view(), name='me'),
+    path('auth/logout/', LogoutView.as_view(), name='logout'),
 ]
 

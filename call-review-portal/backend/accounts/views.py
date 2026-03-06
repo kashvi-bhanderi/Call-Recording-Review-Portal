@@ -86,6 +86,9 @@ class ResetPasswordView(APIView):
         return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)
     
 class LogoutView(APIView):
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         res = Response({"message": "Logged out"}, status=200)
         res.delete_cookie("access_token")

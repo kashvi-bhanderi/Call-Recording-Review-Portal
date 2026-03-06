@@ -57,7 +57,7 @@ class Call(models.Model):
     schema_name = models.CharField(max_length=100, db_index=True)
     phone_number = models.CharField(max_length=20, db_index=True)
     template_id = models.IntegerField(db_index=True)
-
+    duration = models.IntegerField(null=True, blank=True)
     language = models.ForeignKey(Language, on_delete=models.PROTECT, db_index=True)
 
     reviewed_by = models.ForeignKey(

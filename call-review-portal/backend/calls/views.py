@@ -12,7 +12,8 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Prefetch
 
-from .models import Call
+from .models import Call, Tag       
+from accounts.models import Language,User   
 from .serializers import DashboardCallSerializer
 from .filters import DashboardCallFilter
 from accounts.authentication import CookieJWTAuthentication
@@ -79,3 +80,50 @@ class DashboardCallView(ListAPIView):
             return queryset.none()
 
         return queryset.filter(language__in=allowed_languages)
+    
+# views.py
+class CallFilterOptionsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Languages (from related Language model)
+        languages = (
+            Language.objects
+            .filter(call__isnull=False)          # only languages that have calls
+            .distinct()
+            .values("id", "language_name")       # send both id & name for dropdown
+        )
+
+        # Schemas (from Call model)
+        schemas = (
+            Call.objects
+            .exclude(schema_name__isnull=True)
+            .exclude(schema_name__exact="")
+            .values("schema_name")
+            .distinct()
+        )
+
+        # Statuses
+        statuses = [
+            {"value": 1, "label": "Not Rated"},
+            {"value": 2, "label": "Completed"},
+            {"value": 3, "label": "Need Fix"},
+            {"value": 4, "label": "Approved"},
+        ]
+        rated_by = (
+            User.objects
+            .filter(consultant_rated_calls__isnull=False)
+            .distinct()
+            .values("id", "username")
+        )
+
+        # Tags
+        tags = Tag.objects.all().values("id", "name")
+
+        return Response({
+            "languages": list(languages),
+            "schemas": [s["schema_name"] for s in schemas],
+            "statuses": statuses,
+            "rated_by": list(rated_by),
+            "tags": list(tags),
+        })
