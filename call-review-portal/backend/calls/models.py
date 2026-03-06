@@ -88,7 +88,7 @@ class Call(models.Model):
     rating_locked = models.BooleanField(default=False)
     rating_locked_at = models.DateTimeField(null=True, blank=True)
 
-    created = models.DateTimeField(auto_now_add=True, db_index=True)
+    attempt_on_time_stamp = models.DateTimeField(null=True,db_index=True)
     modified = models.DateTimeField(auto_now=True)
 
     def can_transition(self, new_status):

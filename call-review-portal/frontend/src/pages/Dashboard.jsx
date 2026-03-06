@@ -152,7 +152,7 @@ const baseColumns = [
 { key: "schema_name", label: "Schema Name" },
 { key: "phone_number", label: "Provider Mobile" },
 { key: "uuid", label: "Call UUID" },
-{ key: "created", label: "Call Date" },
+{ key: "attempt_on_time_stamp", label: "Call Date & Time" },
 { key: "duration_display", label: "Duration" },
 { key: "status_display", label: "Review Status" },
 { key: "overall_rating", label: "Overall Rating" },
@@ -352,7 +352,7 @@ return ( <div className="dashboard-page"> <div className="dashboard-container">
                 <tr key={call.id}>
                   {columns.map((col) => (
                     <td key={col.key}>
-                      {col.key === "created"
+                      {col.key === "attempt_on_time_stamp"
                         ? new Date(call[col.key]).toLocaleString()
                         : call[col.key] ?? "-"}
                     </td>

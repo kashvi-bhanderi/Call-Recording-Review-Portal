@@ -54,7 +54,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             "schema_name",
             "phone_number",
             "uuid",
-            "created",
+            "attempt_on_time_stamp",
             "duration_display",
             "status_display",
             "overall_rating",
