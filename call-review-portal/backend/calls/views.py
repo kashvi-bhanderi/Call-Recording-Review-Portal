@@ -74,27 +74,26 @@ class DashboardCallView(ListAPIView):
         if user.is_superuser:
             return queryset
 
-        allowed_languages = user.accessible_languages.all()
-
-        if not allowed_languages.exists():
+        # Get language codes user has access to
+        allowed_languages = list(user.accessible_languages.values_list('language', flat=True))
+        if not allowed_languages:
             return queryset.none()
 
+        # Filter calls where language code matches
         return queryset.filter(language__in=allowed_languages)
-    
+        
 # views.py
 class CallFilterOptionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Languages (from related Language model)
-        languages = (
-            Language.objects
-            .filter(call__isnull=False)          # only languages that have calls
-            .distinct()
-            .values("id", "language_name")       # send both id & name for dropdown
-        )
+        # Step 1: get distinct language codes from Call table
+        codes = Call.objects.values_list("language", flat=True).distinct()
 
-        # Schemas (from Call model)
+        # Step 2: fetch language names for these codes
+        languages = Language.objects.filter(language__in=codes).values("language", "language_name")
+
+        # Schemas
         schemas = (
             Call.objects
             .exclude(schema_name__isnull=True)
@@ -110,6 +109,8 @@ class CallFilterOptionsView(APIView):
             {"value": 3, "label": "Need Fix"},
             {"value": 4, "label": "Approved"},
         ]
+
+        # Rated By
         rated_by = (
             User.objects
             .filter(consultant_rated_calls__isnull=False)

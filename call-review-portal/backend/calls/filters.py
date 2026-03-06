@@ -13,7 +13,7 @@ class DashboardCallFilter(django_filters.FilterSet):
     created_before = django_filters.DateFilter(method="filter_attempt_before")
 
     schema_name = django_filters.BaseInFilter(field_name="schema_name", lookup_expr="in")
-    language = django_filters.BaseInFilter(field_name="language__id", lookup_expr="in")
+    language = django_filters.BaseInFilter(field_name="language", lookup_expr="in")
     status = django_filters.BaseInFilter(field_name="status", lookup_expr="in")
 
     rated_by = django_filters.NumberFilter(field_name="rated_by_id")

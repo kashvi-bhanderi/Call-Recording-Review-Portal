@@ -58,7 +58,7 @@ class Call(models.Model):
     phone_number = models.TextField(db_index=True)
     template_id = models.IntegerField(db_index=True)
     duration = models.IntegerField(null=True, blank=True)
-    language = models.ForeignKey(Language, on_delete=models.PROTECT, db_index=True)
+    language = models.TextField(db_index=True)
 
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

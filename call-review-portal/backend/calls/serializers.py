@@ -37,7 +37,7 @@ class CallSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class DashboardCallSerializer(serializers.ModelSerializer):
-    language_name = serializers.CharField(source="language.language_name", read_only=True)
+    language_name = serializers.SerializerMethodField()  # must be method
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     overall_rating = serializers.SerializerMethodField()
     duration_display = serializers.SerializerMethodField()
@@ -61,8 +61,16 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             "rated_by_name",
             "tags_display",
         ]
+
+    def get_language_name(self, obj):
+        from accounts.models import Language
+        # obj.language is now the code like 'hi', 'en'
+        code = obj.language
+        lang = Language.objects.filter(language=code).first()
+        return lang.language_name if lang else code  # fallback to code if not found
+
     def get_tags_display(self, obj):
-       return ", ".join(tag.name for tag in obj.tags.all())
+        return ", ".join(tag.name for tag in obj.tags.all())
 
     def get_overall_rating(self, obj):
         ratings = obj.evaluationcallrating_set.all()
