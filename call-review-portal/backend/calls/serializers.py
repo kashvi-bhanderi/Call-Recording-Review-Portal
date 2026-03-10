@@ -1,84 +1,85 @@
 from rest_framework import serializers
-from .models import Call, EvaluationCallRating, EvaluationMetric, Tag
-
-
-class TagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Tag
-        fields = "__all__"
-
-
-class EvaluationMetricSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EvaluationMetric
-        fields = "__all__"
-
-
-class EvaluationCallRatingSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = EvaluationCallRating
-        fields = "__all__"
-
-    def validate(self, data):
-        parameter = data["parameter"]
-        rating = data["rating"]
-
-        if not (parameter.min_value <= rating <= parameter.max_value):
-            raise serializers.ValidationError("Rating out of allowed range")
-
-        return data
-
-
-class CallSerializer(serializers.ModelSerializer):
-    
-    class Meta:
-        model = Call
-        fields = "__all__"
+from .models import CallCH, EvaluationCallRating, Tag
+from accounts.models import Language, User
 
 class DashboardCallSerializer(serializers.ModelSerializer):
-    language_name = serializers.SerializerMethodField()  # must be method
-    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    language_name = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
     overall_rating = serializers.SerializerMethodField()
     duration_display = serializers.SerializerMethodField()
-
-    rated_by_name = serializers.CharField(source="rated_by.username", read_only=True)
+    rated_by_name = serializers.SerializerMethodField()
     tags_display = serializers.SerializerMethodField()
+    attempt_on_time_stamp = serializers.DateTimeField()
 
     class Meta:
-        model = Call
+        model = CallCH
         fields = [
-            "id",
+            "uuid",
             "template_id",
             "language_name",
             "schema_name",
             "phone_number",
-            "uuid",
-            "attempt_on_time_stamp",
             "duration_display",
             "status_display",
             "overall_rating",
             "rated_by_name",
             "tags_display",
+            "attempt_on_time_stamp",
         ]
 
+    # ------------------------
+    # LANGUAGE NAME
+    # ------------------------
     def get_language_name(self, obj):
-        from accounts.models import Language
-        # obj.language is now the code like 'hi', 'en'
-        code = obj.language
-        lang = Language.objects.filter(language=code).first()
-        return lang.language_name if lang else code  # fallback to code if not found
+        lang = Language.objects.filter(language=obj.language).first()
+        return lang.language_name if lang else obj.language
 
-    def get_tags_display(self, obj):
-        return ", ".join(tag.name for tag in obj.tags.all())
+    # ------------------------
+    # STATUS DISPLAY
+    # ------------------------
+    def get_status_display(self, obj):
+        calls_map = self.context.get("calls_map", {})
+        call = calls_map.get(obj.uuid)
+        return call.get_status_display() if call else "Not Rated"
 
-    def get_overall_rating(self, obj):
-        ratings = obj.evaluationcallrating_set.all()
-        if ratings.exists():
-            total = sum(r.rating for r in ratings)
-            return round(total / ratings.count(), 2)
+    # ------------------------
+    # RATED BY
+    # ------------------------
+    def get_rated_by_name(self, obj):
+        calls_map = self.context.get("calls_map", {})
+        users_map = self.context.get("users_map", {})
+        call = calls_map.get(obj.uuid)
+        if call and call.rated_by_id:
+            user = users_map.get(call.rated_by_id)
+            return user.username if user else None
         return None
 
+    # ------------------------
+    # TAGS
+    # ------------------------
+    def get_tags_display(self, obj):
+        calls_map = self.context.get("calls_map", {})
+        call = calls_map.get(obj.uuid)
+        if call:
+            return ", ".join(tag.name for tag in call.tags.all())
+        return ""
+
+    # ------------------------
+    # OVERALL RATING
+    # ------------------------
+    def get_overall_rating(self, obj):
+        calls_map = self.context.get("calls_map", {})
+        call = calls_map.get(obj.uuid)
+        if call:
+            ratings = call.evaluationcallrating_set.all()
+            if ratings.exists():
+                total = sum(r.rating for r in ratings)
+                return round(total / ratings.count(), 2)
+        return None
+
+    # ------------------------
+    # DURATION DISPLAY
+    # ------------------------
     def get_duration_display(self, obj):
         if obj.duration is None:
             return "-"

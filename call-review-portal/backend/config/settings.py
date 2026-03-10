@@ -143,8 +143,15 @@ DATABASES = {
         'PASSWORD': 'password',
         'HOST': '127.0.0.1',
         'PORT': '5432',
+    },
+    "clickhouse": {
+        "ENGINE": "clickhouse_backend.backend",
+        "NAME": "default",
+        "HOST": "localhost",
+        "PORT": "9000",
     }
 }
+DATABASE_ROUTERS = ["config.db_router.ClickHouseRouter"]
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.postgresql',

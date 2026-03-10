@@ -36,6 +36,18 @@ class EvaluationMetric(models.Model):
 # ------------------------
 # CALL MODEL
 # ------------------------
+class CallCH(models.Model):
+
+    uuid = models.TextField(primary_key=True)
+    schema_name = models.TextField()
+    phone_number = models.TextField()
+    template_id = models.IntegerField()
+    duration = models.IntegerField(null=True)
+    language = models.TextField()
+    attempt_on_time_stamp = models.DateTimeField()
+    class Meta:
+        managed = False
+        db_table = "cai_call"
 
 class Call(models.Model):
 
@@ -54,12 +66,7 @@ class Call(models.Model):
     }
 
     uuid = models.TextField(unique=True, db_index=True)
-    schema_name = models.TextField(db_index=True)
-    phone_number = models.TextField(db_index=True)
-    template_id = models.IntegerField(db_index=True)
-    duration = models.IntegerField(null=True, blank=True)
-    language = models.TextField(db_index=True)
-
+    
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
