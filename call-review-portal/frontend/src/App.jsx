@@ -6,7 +6,8 @@ import Dashboard from './pages/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-
+import CallReview from "./pages/CallReview";
+import LeadReview from "./pages/LeadReview";
 const App = () => {
   return (
     <Router>
@@ -30,7 +31,8 @@ const App = () => {
             </ProtectedRoute>
           } 
         />
-
+        <Route path="/consultant/review/:uuid" element={<CallReview />} />
+        <Route path="/lead/review/:uuid" element={<LeadReview />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:uid/:token" element={<ResetPassword />} /> 
       </Routes>

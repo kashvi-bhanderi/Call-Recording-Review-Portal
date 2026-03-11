@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from .models import CallCH, EvaluationCallRating, Tag
 from accounts.models import Language, User
+from django.utils import timezone
+from rest_framework import serializers
+from .models import Call, EvaluationCallRating, EvaluationMetric
 
 class DashboardCallSerializer(serializers.ModelSerializer):
     language_name = serializers.SerializerMethodField()
@@ -86,3 +89,56 @@ class DashboardCallSerializer(serializers.ModelSerializer):
         minutes = obj.duration // 60
         seconds = obj.duration % 60
         return f"{minutes}m {seconds}s"
+
+
+class EvaluationCallRatingSerializer(serializers.Serializer):
+    call_uuid = serializers.CharField()
+    ratings = serializers.DictField(
+        child=serializers.IntegerField(min_value=1),  # Dynamic based on EvaluationMetric
+    )
+    comments = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_call_uuid(self, value):
+        try:
+            call = Call.objects.get(uuid=value)
+        except Call.DoesNotExist:
+            raise serializers.ValidationError("Call not found")
+        return value
+
+    def validate(self, data):
+        # Validate ratings are within metric range
+        call = Call.objects.get(uuid=data['call_uuid'])
+        for param_name, rating in data['ratings'].items():
+            try:
+                metric = EvaluationMetric.objects.get(name=param_name)
+            except EvaluationMetric.DoesNotExist:
+                raise serializers.ValidationError(f"Invalid parameter: {param_name}")
+            if not (metric.min_value <= rating <= metric.max_value):
+                raise serializers.ValidationError(f"Rating for {param_name} out of allowed range")
+        return data
+
+    def create_or_update_ratings(self, user):
+        """
+        Create or update EvaluationCallRating entries for this call.
+        """
+        call = Call.objects.get(uuid=self.validated_data['call_uuid'])
+        ratings_data = self.validated_data['ratings']
+        comments = self.validated_data.get('comments', '')
+
+        for param_name, rating in ratings_data.items():
+            metric = EvaluationMetric.objects.get(name=param_name)
+            obj, created = EvaluationCallRating.objects.update_or_create(
+                call=call,
+                parameter=metric,
+                rated_by=user,
+                defaults={'rating': rating}
+            )
+
+        # Update the call fields: status and consultant comment
+        if call.status == 1:  # Not Rated
+            call.status = 2  # Completed
+        call.consultant_comment = comments
+        call.rated_by = user
+        call.rated_at = timezone.now()
+        call.save()
+        return call

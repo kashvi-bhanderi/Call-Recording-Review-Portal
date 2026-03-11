@@ -2,8 +2,6 @@ from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from accounts.models import Language
-
 
 # ------------------------
 # TAG MODEL
@@ -58,12 +56,6 @@ class Call(models.Model):
         (4, "Approved"),
     )
 
-    ALLOWED_TRANSITIONS = {
-        1: [2],
-        2: [3, 4],
-        3: [],
-        4: [],
-    }
 
     uuid = models.TextField(unique=True, db_index=True)
     
@@ -98,12 +90,8 @@ class Call(models.Model):
     attempt_on_time_stamp = models.DateTimeField(null=True,db_index=True)
     modified = models.DateTimeField(auto_now=True)
 
-    def can_transition(self, new_status):
-        return new_status in self.ALLOWED_TRANSITIONS.get(self.status, [])
 
     def update_status(self, new_status):
-        if not self.can_transition(new_status):
-            raise ValidationError("Invalid status transition")
         self.status = new_status
         self.save()
 

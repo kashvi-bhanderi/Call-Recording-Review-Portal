@@ -768,7 +768,16 @@ return ( <div className="dashboard-page"> <div className="dashboard-container">
                   <td>
                     <button
                       className="view-btn"
-                      onClick={() => navigate(`/call/${call.uuid}`)}
+                      onClick={() => {
+                        const role = localStorage.getItem("role");
+
+                        if(role === "consultant"){
+                        navigate(`/consultant/review/${call.uuid}`);
+                        }
+                        else if(role === "lead"){
+                        navigate(`/lead/review/${call.uuid}`);
+                        }
+                        }}
                     >
                       View Call
                     </button>

@@ -1,3 +1,6 @@
+from subprocess import call
+from urllib import request
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -12,7 +15,9 @@ from .serializers import DashboardCallSerializer
 from .filters import DashboardCallFilter
 from accounts.authentication import CookieJWTAuthentication
 from .services import acquire_lock, release_lock
-
+from .models import Call, EvaluationMetric, EvaluationCallRating
+from rest_framework import status
+from .serializers import EvaluationCallRatingSerializer
 
 # ------------------------
 # LOCK CALL
@@ -29,50 +34,27 @@ class LockCallView(APIView):
 # ------------------------
 # CONSULTANT SUBMIT
 # ------------------------
-class SubmitConsultantRatingView(APIView):
-    permission_classes = [IsAuthenticated]
 
-    @transaction.atomic
-    def post(self, request, pk):
-        call = Call.objects.get(pk=pk)
-        call.update_status(2)
-        call.rated_by = request.user
-        call.rated_at = timezone.now()
-        call.save()
-        return Response({"message": "Submitted successfully"})
-
-
-# ------------------------
-# APPROVE
-# ------------------------
-class ApproveCallView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, pk):
-        call = Call.objects.get(pk=pk)
-        call.update_status(4)
-        call.reviewed_at = timezone.now()
-        release_lock(call)
-        return Response({"message": "Approved"})
-
-
-# ------------------------
-# REJECT
-# ------------------------
-class RejectCallView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, pk):
-        call = Call.objects.get(pk=pk)
-        call.update_status(3)
-        release_lock(call)
-        return Response({"message": "Rejected"})
+class SubmitCallReviewAPIView(APIView):
+    """
+    Submit or update call review.
+    """
+    def post(self, request):
+        serializer = EvaluationCallRatingSerializer(data=request.data)
+        if serializer.is_valid():
+            call = serializer.create_or_update_ratings(user=request.user)
+            return Response({
+                "message": "Review submitted successfully",
+                "call_uuid": call.uuid,
+                "status": call.get_status_display()
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ------------------------
 # DASHBOARD LIST
 # ------------------------
-from django.db.models import Prefetch
+
 
 class DashboardCallView(ListAPIView):
     serializer_class = DashboardCallSerializer
@@ -175,3 +157,172 @@ class CallFilterOptionsView(APIView):
             "rated_by": list(rated_by),
             "tags": list(tags),
         })
+    
+class ConsultantCallDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, call_uuid):
+
+        # ---------- CLICKHOUSE METADATA ----------
+        try:
+            ch_call = CallCH.objects.using("clickhouse").get(uuid=call_uuid)
+        except CallCH.DoesNotExist:
+            return Response({"error": "Call not found"}, status=404)
+
+        # ---------- POSTGRES CALL ----------
+        call, created = Call.objects.get_or_create(
+            uuid=call_uuid,
+            defaults={
+                "attempt_on_time_stamp": ch_call.attempt_on_time_stamp
+            }
+        )
+
+        # ---------- METRICS ----------
+        metrics = EvaluationMetric.objects.filter(is_active=True)
+
+        # ---------- EXISTING RATINGS ----------
+        ratings = EvaluationCallRating.objects.filter(
+            call=call,
+            rated_by=request.user
+        )
+
+        ratings_map = {r.parameter.name: r.rating for r in ratings}
+
+        data = {
+            "metadata": {
+                "schema_name": ch_call.schema_name,
+                "language": ch_call.language,
+                "uuid": ch_call.uuid,
+                "phone_number": ch_call.phone_number,
+                "duration": ch_call.duration,
+                "attempt_on_time_stamp": ch_call.attempt_on_time_stamp,
+                "status": call.get_status_display()
+            },
+            "metrics": [
+                {
+                    "name": m.name,
+                    "min": m.min_value,
+                    "max": m.max_value,
+                    "value": ratings_map.get(m.name)
+                }
+                for m in metrics
+            ],
+            "comments": call.consultant_comment or ""
+        }
+
+        return Response(data)
+
+class LeadCallDetailAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, call_uuid):
+
+        call, created = Call.objects.get_or_create(uuid=call_uuid)
+        ch_call = CallCH.objects.using("clickhouse").get(uuid=call_uuid)
+
+        metrics = EvaluationMetric.objects.filter(is_active=True)
+
+        consultant_ratings = []
+
+        if call.rated_by:
+            consultant_ratings = EvaluationCallRating.objects.filter(
+                call=call,
+                rated_by=call.rated_by
+            )
+        consultant_list = []
+
+        for r in consultant_ratings:
+            consultant_list.append({
+                "metric": r.parameter.name,
+                "value": r.rating
+            })
+
+        lead_ratings = EvaluationCallRating.objects.filter(
+            call=call,
+            rated_by=request.user
+        )
+
+        lead_map = {r.parameter.name: r.rating for r in lead_ratings}
+
+        tags = Tag.objects.all()
+
+        data = {
+
+            "metadata": {
+                "uuid": ch_call.uuid,
+                "schema_name": ch_call.schema_name,
+                "phone_number": ch_call.phone_number,
+                "duration": ch_call.duration,
+                "language": ch_call.language,
+                "attempt_on_time_stamp": ch_call.attempt_on_time_stamp,
+                "status": call.get_status_display(),
+            },
+
+            "consultant_review": {
+                "ratings": consultant_list,
+                "comment": call.consultant_comment,
+                "timestamp": call.rated_at
+            },
+
+            "metrics": [
+                {
+                    "name": m.name,
+                    "min": m.min_value,
+                    "max": m.max_value,
+                    "value": lead_map.get(m.name)
+                }
+                for m in metrics
+            ],
+
+            "lead_comment": call.lead_comment,
+            "status": call.status,
+
+            "tag_options": [
+                {"id": t.id, "name": t.name} for t in tags
+            ],
+
+            "selected_tags": [t.id for t in call.tags.all()]
+
+        }
+
+        return Response(data)
+    
+class LeadSubmitReviewAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        call_uuid = request.data.get("call_uuid")
+        ratings = request.data.get("ratings", {})
+        comment = request.data.get("comment")
+        tags = request.data.get("tags", [])
+
+        call = Call.objects.get(uuid=call_uuid)
+
+        for metric_name, rating in ratings.items():
+
+            metric = EvaluationMetric.objects.get(name=metric_name)
+
+            EvaluationCallRating.objects.update_or_create(
+                call=call,
+                parameter=metric,
+                rated_by=request.user,
+                defaults={"rating": rating}
+            )
+        status = request.data.get("status")
+
+        if status:
+            status = int(status)
+            call.update_status(status)
+
+        call.lead_comment = comment
+        call.reviewed_by = request.user
+        call.reviewed_at = timezone.now()
+
+        call.tags.set(tags)
+
+        call.save()
+
+        return Response({"message": "Lead review submitted"})

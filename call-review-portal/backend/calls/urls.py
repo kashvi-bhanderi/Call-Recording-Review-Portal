@@ -1,19 +1,20 @@
 from django.urls import path
 from .views import (
+    LeadCallDetailAPIView,
+    LeadSubmitReviewAPIView,
     LockCallView,
-    SubmitConsultantRatingView,
-    ApproveCallView,
-    RejectCallView
 )
 from .views import DashboardCallView, CallFilterOptionsView
-
+from .views import SubmitCallReviewAPIView
+from .views import ConsultantCallDetailAPIView
 
 urlpatterns = [
     path("<int:pk>/lock/", LockCallView.as_view()),
-    path("<int:pk>/submit/", SubmitConsultantRatingView.as_view()),
-    path("<int:pk>/approve/", ApproveCallView.as_view()),
-    path("<int:pk>/reject/", RejectCallView.as_view()),
     path("dashboard/", DashboardCallView.as_view(), name="dashboard-calls"),
     path("filter-options/", CallFilterOptionsView.as_view(), name="call-filter-options"),
+    path('consultant-rating/', SubmitCallReviewAPIView.as_view(), name='submit_call_review'),
+    path("detail/<str:call_uuid>/", ConsultantCallDetailAPIView.as_view()),
+    path("lead-detail/<str:call_uuid>/", LeadCallDetailAPIView.as_view()),
+    path("lead-rating/", LeadSubmitReviewAPIView.as_view(), name="lead-rating"),
 ]
 
