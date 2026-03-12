@@ -349,54 +349,56 @@ class LeadCallDetailAPIView(APIView):
         }
 
         return Response(data)
-    
-class LeadSubmitReviewAPIView(APIView):
 
+
+class LeadSubmitReviewAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-
         call_uuid = request.data.get("call_uuid")
         ratings = request.data.get("ratings", {})
         comment = request.data.get("comment")
         tags = request.data.get("tags", [])
+        status = request.data.get("status")
+
+        try:
+            status = int(status)
+        except (TypeError, ValueError):
+            return Response({"error": "Valid status is required"}, status=400)
+
+        if status not in [3, 4]:
+            return Response({"error": "Status must be 3 (Need Fix) or 4 (Approved)"}, status=400)
 
         call = Call.objects.get(uuid=call_uuid)
-        if call.status not in [2,3,4]:
+
+        if call.status not in [2, 3, 4]:
             return Response(
                 {"error": "Consultant must complete review first"},
                 status=403
             )
-        for metric_name, rating in ratings.items():
 
-            if rating is None or rating == "":
-                continue
+        with transaction.atomic():
+            # Save ratings
+            for metric_name, rating in ratings.items():
+                if rating in [None, ""]:
+                    continue
+                metric = EvaluationMetric.objects.get(name=metric_name)
+                EvaluationCallRating.objects.update_or_create(
+                    call=call,
+                    parameter=metric,
+                    rated_by=request.user,
+                    defaults={"rating": rating}
+                )
 
-            metric = EvaluationMetric.objects.get(name=metric_name)
+            # Update call only after status is confirmed
+            call.update_status(int(status))
+            call.lead_comment = comment
+            call.reviewed_by = request.user
+            call.reviewed_at = timezone.now()
+            call.tags.set(tags)
+            call.save()
 
-            EvaluationCallRating.objects.update_or_create(
-                call=call,
-                parameter=metric,
-                rated_by=request.user,
-                defaults={"rating": rating}
-            )
-        status = request.data.get("status")
+            if call.status in [3, 4]:
+                release_lock(call)
 
-        if not status:
-            return Response(
-                {"error": "Status is required"},
-                status=400
-            )
-
-        call.update_status(int(status))
-
-        call.lead_comment = comment
-        call.reviewed_by = request.user
-        call.reviewed_at = timezone.now()
-
-        call.tags.set(tags)
-
-        call.save()
-        if call.status in [3, 4]:
-            release_lock(call)
         return Response({"message": "Lead review submitted"})
