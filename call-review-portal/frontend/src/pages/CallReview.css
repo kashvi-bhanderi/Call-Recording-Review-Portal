@@ -184,7 +184,44 @@ color: #991b1b;
 background: #e0f2fe;
 color: #0369a1;
 }
+/* Edit button */
+button.edit-btn {
+  background-color: #3498db; /* Blue */
+  color: #fff;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
 
+button.edit-btn:hover {
+  background-color: #2980b9; /* Darker blue on hover */
+}
+
+/* Update button */
+button.update-btn {
+  background-color: #27ae60; /* Green */
+  color: #fff;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+button.update-btn:hover {
+  background-color: #1e8449; /* Darker green on hover */
+}
+
+/* Disabled state for both */
+button:disabled {
+  background-color: #ccc;
+  color: #666;
+  cursor: not-allowed;
+}
 /* ================= Responsive ================= */
 
 @media (max-width: 900px) {

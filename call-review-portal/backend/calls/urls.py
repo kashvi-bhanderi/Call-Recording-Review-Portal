@@ -2,14 +2,12 @@ from django.urls import path
 from .views import (
     LeadCallDetailAPIView,
     LeadSubmitReviewAPIView,
-    LockCallView,
 )
 from .views import DashboardCallView, CallFilterOptionsView
 from .views import SubmitCallReviewAPIView
 from .views import ConsultantCallDetailAPIView
 
 urlpatterns = [
-    path("<int:pk>/lock/", LockCallView.as_view()),
     path("dashboard/", DashboardCallView.as_view(), name="dashboard-calls"),
     path("filter-options/", CallFilterOptionsView.as_view(), name="call-filter-options"),
     path('consultant-rating/', SubmitCallReviewAPIView.as_view(), name='submit_call_review'),

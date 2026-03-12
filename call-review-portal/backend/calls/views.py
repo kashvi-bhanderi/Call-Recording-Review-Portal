@@ -1,3 +1,4 @@
+
 from subprocess import call
 from urllib import request
 
@@ -18,38 +19,45 @@ from .services import acquire_lock, release_lock
 from .models import Call, EvaluationMetric, EvaluationCallRating
 from rest_framework import status
 from .serializers import EvaluationCallRatingSerializer
+from datetime import timedelta
+from django.utils import timezone
+from .services import acquire_lock, check_lock_expiry
 
-# ------------------------
-# LOCK CALL
-# ------------------------
-class LockCallView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, pk):
-        call = Call.objects.get(pk=pk)
-        acquire_lock(call, request.user)
-        return Response({"message": "Lock acquired"})
-
+from .services import check_lock_expiry, LOCK_DURATION
 
 # ------------------------
 # CONSULTANT SUBMIT
 # ------------------------
-
 class SubmitCallReviewAPIView(APIView):
-    """
-    Submit or update call review.
-    """
+
     def post(self, request):
+
+        call_uuid = request.data.get("call_uuid")
+        call = Call.objects.filter(uuid=call_uuid).first()
+
+        if call:
+
+            check_lock_expiry(call)
+
+            if call.rating_locked:
+                return Response(
+                    {"error": "Lead is reviewing this call"},
+                    status=403
+                )
+
         serializer = EvaluationCallRatingSerializer(data=request.data)
+
         if serializer.is_valid():
+
             call = serializer.create_or_update_ratings(user=request.user)
+
             return Response({
                 "message": "Review submitted successfully",
                 "call_uuid": call.uuid,
                 "status": call.get_status_display()
             })
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # ------------------------
 # DASHBOARD LIST
@@ -158,29 +166,31 @@ class CallFilterOptionsView(APIView):
             "tags": list(tags),
         })
     
+from .services import check_lock_expiry, LOCK_DURATION
+
 class ConsultantCallDetailAPIView(APIView):
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request, call_uuid):
 
-        # ---------- CLICKHOUSE METADATA ----------
         try:
             ch_call = CallCH.objects.using("clickhouse").get(uuid=call_uuid)
         except CallCH.DoesNotExist:
             return Response({"error": "Call not found"}, status=404)
 
-        # ---------- POSTGRES CALL ----------
         call, created = Call.objects.get_or_create(
             uuid=call_uuid,
-            defaults={
-                "attempt_on_time_stamp": ch_call.attempt_on_time_stamp
-            }
+            defaults={"attempt_on_time_stamp": ch_call.attempt_on_time_stamp}
         )
 
-        # ---------- METRICS ----------
+        # check if lock expired
+        check_lock_expiry(call)
+
+        is_locked = call.rating_locked
+
         metrics = EvaluationMetric.objects.filter(is_active=True)
 
-        # ---------- EXISTING RATINGS ----------
         ratings = EvaluationCallRating.objects.filter(
             call=call,
             rated_by=request.user
@@ -188,16 +198,20 @@ class ConsultantCallDetailAPIView(APIView):
 
         ratings_map = {r.parameter.name: r.rating for r in ratings}
 
+        lang_obj = Language.objects.filter(language=ch_call.language).first()
+        language_name = lang_obj.language_name if lang_obj else ch_call.language
+
         data = {
             "metadata": {
                 "schema_name": ch_call.schema_name,
-                "language": ch_call.language,
+                "language": language_name,
                 "uuid": ch_call.uuid,
                 "phone_number": ch_call.phone_number,
                 "duration": ch_call.duration,
                 "attempt_on_time_stamp": ch_call.attempt_on_time_stamp,
                 "status": call.get_status_display()
             },
+
             "metrics": [
                 {
                     "name": m.name,
@@ -207,10 +221,13 @@ class ConsultantCallDetailAPIView(APIView):
                 }
                 for m in metrics
             ],
-            "comments": call.consultant_comment or ""
+
+            "comments": call.consultant_comment or "",
+            "is_locked": is_locked
         }
 
         return Response(data)
+
 
 class LeadCallDetailAPIView(APIView):
 
@@ -218,11 +235,44 @@ class LeadCallDetailAPIView(APIView):
 
     def get(self, request, call_uuid):
 
-        call, created = Call.objects.get_or_create(uuid=call_uuid)
-        ch_call = CallCH.objects.using("clickhouse").get(uuid=call_uuid)
+        # ------------------------
+        # GET CLICKHOUSE CALL
+        # ------------------------
+        try:
+            ch_call = CallCH.objects.using("clickhouse").get(uuid=call_uuid)
+        except CallCH.DoesNotExist:
+            return Response({"error": "Call not found"}, status=404)
 
+        # ------------------------
+        # GET OR CREATE POSTGRES CALL
+        # ------------------------
+        call, created = Call.objects.get_or_create(
+            uuid=call_uuid,
+            defaults={"attempt_on_time_stamp": ch_call.attempt_on_time_stamp}
+        )
+
+        # ------------------------
+        # CHECK LOCK EXPIRY
+        # ------------------------
+        check_lock_expiry(call)
+
+        # ------------------------
+        # ACQUIRE LOCK FOR LEAD
+        # ------------------------
+        if call.status == 2:
+            try:
+                acquire_lock(call, request.user)
+            except Exception:
+                pass
+
+        # ------------------------
+        # METRICS
+        # ------------------------
         metrics = EvaluationMetric.objects.filter(is_active=True)
 
+        # ------------------------
+        # CONSULTANT RATINGS
+        # ------------------------
         consultant_ratings = []
 
         if call.rated_by:
@@ -230,6 +280,7 @@ class LeadCallDetailAPIView(APIView):
                 call=call,
                 rated_by=call.rated_by
             )
+
         consultant_list = []
 
         for r in consultant_ratings:
@@ -238,6 +289,9 @@ class LeadCallDetailAPIView(APIView):
                 "value": r.rating
             })
 
+        # ------------------------
+        # LEAD RATINGS
+        # ------------------------
         lead_ratings = EvaluationCallRating.objects.filter(
             call=call,
             rated_by=request.user
@@ -245,6 +299,15 @@ class LeadCallDetailAPIView(APIView):
 
         lead_map = {r.parameter.name: r.rating for r in lead_ratings}
 
+        # ------------------------
+        # LANGUAGE
+        # ------------------------
+        lang_obj = Language.objects.filter(language=ch_call.language).first()
+        language_name = lang_obj.language_name if lang_obj else ch_call.language
+
+        # ------------------------
+        # TAGS
+        # ------------------------
         tags = Tag.objects.all()
 
         data = {
@@ -254,7 +317,7 @@ class LeadCallDetailAPIView(APIView):
                 "schema_name": ch_call.schema_name,
                 "phone_number": ch_call.phone_number,
                 "duration": ch_call.duration,
-                "language": ch_call.language,
+                "language": language_name,
                 "attempt_on_time_stamp": ch_call.attempt_on_time_stamp,
                 "status": call.get_status_display(),
             },
@@ -283,7 +346,6 @@ class LeadCallDetailAPIView(APIView):
             ],
 
             "selected_tags": [t.id for t in call.tags.all()]
-
         }
 
         return Response(data)
@@ -300,8 +362,15 @@ class LeadSubmitReviewAPIView(APIView):
         tags = request.data.get("tags", [])
 
         call = Call.objects.get(uuid=call_uuid)
-
+        if call.status not in [2,3,4]:
+            return Response(
+                {"error": "Consultant must complete review first"},
+                status=403
+            )
         for metric_name, rating in ratings.items():
+
+            if rating is None or rating == "":
+                continue
 
             metric = EvaluationMetric.objects.get(name=metric_name)
 
@@ -313,9 +382,13 @@ class LeadSubmitReviewAPIView(APIView):
             )
         status = request.data.get("status")
 
-        if status:
-            status = int(status)
-            call.update_status(status)
+        if not status:
+            return Response(
+                {"error": "Status is required"},
+                status=400
+            )
+
+        call.update_status(int(status))
 
         call.lead_comment = comment
         call.reviewed_by = request.user
@@ -324,5 +397,6 @@ class LeadSubmitReviewAPIView(APIView):
         call.tags.set(tags)
 
         call.save()
-
+        if call.status in [3, 4]:
+            release_lock(call)
         return Response({"message": "Lead review submitted"})
