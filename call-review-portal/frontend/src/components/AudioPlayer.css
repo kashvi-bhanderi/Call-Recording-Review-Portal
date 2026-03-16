@@ -1,0 +1,51 @@
+.audio-player-container {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+}
+
+.waveform-box {
+  margin-bottom: 16px;
+  min-height: 100px;
+}
+
+.audio-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+
+.audio-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.audio-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.time-box {
+  min-width: 100px;
+  font-weight: 500;
+}
+
+.seek-bar {
+  flex: 1;
+  min-width: 220px;
+}
+
+.volume-box,
+.speed-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

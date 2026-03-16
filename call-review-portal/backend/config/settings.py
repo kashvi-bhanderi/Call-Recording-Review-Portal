@@ -13,9 +13,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
+from datetime import timedelta
 import os
-# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-# DEFAULT_FROM_EMAIL = 'noreply@example.com'
+
 
 EMAIL_BACKEND = config("EMAIL_BACKEND")
 EMAIL_HOST = config("EMAIL_HOST")
@@ -25,29 +25,19 @@ EMAIL_HOST_USER = config("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
 
-# REST_FRAMEWORK = {
-
-# 'DEFAULT_AUTHENTICATION_CLASSES': (
-
-# 'rest_framework_simplejwt.authentication.JWTAuthentication',
-
-# ),
-
-
-# }
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'accounts.authentication.CookieJWTAuthentication',
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 10,
+    "PAGE_SIZE":8,
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend"
     ]
 }
 
 
-from datetime import timedelta
+
 
 SIMPLE_JWT = {
 
@@ -127,12 +117,6 @@ AUTH_USER_MODEL = 'accounts.User'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
 
 
 DATABASES = {
@@ -152,16 +136,6 @@ DATABASES = {
     }
 }
 DATABASE_ROUTERS = ["config.db_router.ClickHouseRouter"]
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.environ.get('DATABASE_NAME', 'db'),
-#         'USER': os.environ.get('DATABASE_USER', 'user'),
-#         'PASSWORD': os.environ.get('DATABASE_PASSWORD', 'password'),
-#         'HOST': os.environ.get('DATABASE_HOST', 'db'),
-#         'PORT': os.environ.get('DATABASE_PORT', 5432),
-#     }
-# }
 
 ALLOWED_HOSTS = []
 
@@ -190,7 +164,10 @@ USE_TZ = True
 
 USE_I18N = True
 
-
+AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME")
+AWS_REGION = config("AWS_REGION", default="ap-south-1")
 
 
 # Static files (CSS, JavaScript, Images)

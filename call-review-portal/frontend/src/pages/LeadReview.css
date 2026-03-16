@@ -18,3 +18,51 @@ select:focus{
 .edit-btn:hover{
   background:#d97706;
 }
+
+.common-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22px 28px;
+  border-radius: 14px;
+  margin-bottom: 25px;
+  background: linear-gradient(135deg, #6fb3be, #4f9aa5);
+  color: white;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.common-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.logout-btn {
+  background: white;
+  color: #4f9aa5;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  padding: 9px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 640px) {
+  .common-header h2 {
+    font-size: 20px;
+  }
+
+  .logout-btn {
+    width: 100%;
+  }
+}

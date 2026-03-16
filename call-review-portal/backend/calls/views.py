@@ -1,4 +1,3 @@
-
 from subprocess import call
 from urllib import request
 
@@ -9,21 +8,21 @@ from django.utils import timezone
 from django.db import transaction
 from rest_framework.generics import ListAPIView
 from django_filters.rest_framework import DjangoFilterBackend
-
-from .models import Call, CallCH, Tag
+from .models import Call, CallCH, Tag, EvaluationMetric, EvaluationCallRating
 from accounts.models import Language, User
-from .serializers import DashboardCallSerializer
+from .serializers import DashboardCallSerializer, EvaluationCallRatingSerializer
 from .filters import DashboardCallFilter
 from accounts.authentication import CookieJWTAuthentication
-from .services import acquire_lock, release_lock
-from .models import Call, EvaluationMetric, EvaluationCallRating
+from .services import (
+    acquire_lock,
+    release_lock,
+    check_lock_expiry,
+    LOCK_DURATION,
+)
 from rest_framework import status
-from .serializers import EvaluationCallRatingSerializer
-from datetime import timedelta
-from django.utils import timezone
-from .services import acquire_lock, check_lock_expiry
+from .s3_service import find_audio_file, generate_signed_url
+from django.conf import settings
 
-from .services import check_lock_expiry, LOCK_DURATION
 
 # ------------------------
 # CONSULTANT SUBMIT
@@ -31,12 +30,10 @@ from .services import check_lock_expiry, LOCK_DURATION
 class SubmitCallReviewAPIView(APIView):
 
     def post(self, request):
-
         call_uuid = request.data.get("call_uuid")
         call = Call.objects.filter(uuid=call_uuid).first()
 
         if call:
-
             check_lock_expiry(call)
 
             if call.rating_locked:
@@ -48,7 +45,6 @@ class SubmitCallReviewAPIView(APIView):
         serializer = EvaluationCallRatingSerializer(data=request.data)
 
         if serializer.is_valid():
-
             call = serializer.create_or_update_ratings(user=request.user)
 
             return Response({
@@ -59,11 +55,10 @@ class SubmitCallReviewAPIView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 # ------------------------
 # DASHBOARD LIST
 # ------------------------
-
-
 class DashboardCallView(ListAPIView):
     serializer_class = DashboardCallSerializer
     permission_classes = [IsAuthenticated]
@@ -75,40 +70,73 @@ class DashboardCallView(ListAPIView):
         user = self.request.user
         queryset = CallCH.objects.using("clickhouse").all()
 
+        # ------------------------
+        # LANGUAGE ACCESS FILTER
+        # ------------------------
         if not user.is_superuser:
-            allowed_languages = list(user.accessible_languages.values_list("language", flat=True))
+            allowed_languages = list(
+                user.accessible_languages.values_list("language", flat=True)
+            )
             if not allowed_languages:
                 return queryset.none()
             queryset = queryset.filter(language__in=allowed_languages)
 
+        # ------------------------
         # POSTGRES FILTERING
-        status = self.request.GET.get("status")
+        # ------------------------
+        status_filter = self.request.GET.get("status")
         rated_by = self.request.GET.get("rated_by")
         tags = self.request.GET.get("tags")
 
-        if status:
-            uuids = Call.objects.filter(status__in=status.split(",")).values_list("uuid", flat=True)
+        if status_filter:
+            uuids = Call.objects.filter(
+                status__in=status_filter.split(",")
+            ).values_list("uuid", flat=True)
             queryset = queryset.filter(uuid__in=list(uuids))
 
         if rated_by:
-            uuids = Call.objects.filter(rated_by_id=rated_by).values_list("uuid", flat=True)
+            uuids = Call.objects.filter(
+                rated_by_id=rated_by
+            ).values_list("uuid", flat=True)
             queryset = queryset.filter(uuid__in=list(uuids))
 
         if tags:
-            uuids = Call.objects.filter(tags__id__in=tags.split(",")).values_list("uuid", flat=True)
+            uuids = Call.objects.filter(
+                tags__id__in=tags.split(",")
+            ).values_list("uuid", flat=True)
             queryset = queryset.filter(uuid__in=list(uuids))
+
+        # ------------------------
+        # MANUAL SORTING (CLICKHOUSE SAFE)
+        # ------------------------
+        ordering = self.request.GET.get("ordering", "-attempt_on_time_stamp")
+
+        allowed_orderings = [
+            "duration",
+            "-duration",
+            "attempt_on_time_stamp",
+            "-attempt_on_time_stamp",
+        ]
+
+        if ordering not in allowed_orderings:
+            ordering = "-attempt_on_time_stamp"
+
+        queryset = queryset.order_by(ordering)
 
         return queryset
 
     def get_serializer_context(self):
-        # Add calls_map and users_map so serializer can access Postgres objects
         context = super().get_serializer_context()
 
-        # Map uuid -> Call object (Postgres)
-        call_uuids = [obj.uuid for obj in self.get_queryset()]
-        calls_map = {c.uuid: c for c in Call.objects.filter(uuid__in=call_uuids).prefetch_related("tags", "evaluationcallrating_set")}
+        queryset = self.get_queryset()
+        call_uuids = [obj.uuid for obj in queryset]
 
-        # Map user_id -> User object
+        calls_map = {
+            c.uuid: c
+            for c in Call.objects.filter(uuid__in=call_uuids)
+            .prefetch_related("tags", "evaluationcallrating_set")
+        }
+
         user_ids = [c.rated_by_id for c in calls_map.values() if c.rated_by_id]
         users_map = {u.id: u for u in User.objects.filter(id__in=user_ids)}
 
@@ -117,25 +145,59 @@ class DashboardCallView(ListAPIView):
 
         return context
 
-# ------------------------
-# FILTER OPTIONS
-# ------------------------
 class CallFilterOptionsView(APIView):
     permission_classes = [IsAuthenticated]
+    authentication_classes = [CookieJWTAuthentication]
 
     def get(self, request):
-        # --------------------
-        # LANGUAGE OPTIONS
-        # --------------------
-        codes = CallCH.objects.using("clickhouse").values_list("language", flat=True).distinct()
-        languages = Language.objects.filter(language__in=list(codes)).values("language", "language_name")
+        user = request.user
 
         # --------------------
-        # SCHEMA OPTIONS
+        # BASE CLICKHOUSE QUERYSET (SAME ACCESS AS DASHBOARD)
         # --------------------
-        schemas = CallCH.objects.using("clickhouse").exclude(schema_name__isnull=True)\
-                     .exclude(schema_name__exact="")\
-                     .values_list("schema_name", flat=True).distinct()
+        ch_queryset = CallCH.objects.using("clickhouse").all()
+
+        if not user.is_superuser:
+            allowed_languages = list(
+                user.accessible_languages.values_list("language", flat=True)
+            )
+
+            if not allowed_languages:
+                return Response({
+                    "languages": [],
+                    "schemas": [],
+                    "statuses": [
+                        {"value": 1, "label": "Not Rated"},
+                        {"value": 2, "label": "Completed"},
+                        {"value": 3, "label": "Need Fix"},
+                        {"value": 4, "label": "Approved"},
+                    ],
+                    "rated_by": [],
+                    "tags": [],
+                })
+
+            ch_queryset = ch_queryset.filter(language__in=allowed_languages)
+
+        # --------------------
+        # LANGUAGE OPTIONS (ONLY ACCESSIBLE)
+        # --------------------
+        codes = list(
+            ch_queryset.values_list("language", flat=True).distinct()
+        )
+
+        languages = Language.objects.filter(
+            language__in=codes
+        ).values("language", "language_name")
+
+        # --------------------
+        # SCHEMA OPTIONS (ONLY ACCESSIBLE)
+        # --------------------
+        schemas = (
+            ch_queryset.exclude(schema_name__isnull=True)
+            .exclude(schema_name__exact="")
+            .values_list("schema_name", flat=True)
+            .distinct()
+        )
 
         # --------------------
         # STATUS OPTIONS
@@ -148,15 +210,33 @@ class CallFilterOptionsView(APIView):
         ]
 
         # --------------------
-        # RATED BY (Postgres)
+        # ONLY CALL UUIDs USER CAN SEE
         # --------------------
-        rated_by = User.objects.filter(consultant_rated_calls__isnull=False)\
-                     .distinct().values("id", "username")
+        visible_uuids = list(
+            ch_queryset.values_list("uuid", flat=True)
+        )
 
         # --------------------
-        # TAGS
+        # RATED BY (ONLY FROM VISIBLE CALLS)
         # --------------------
-        tags = Tag.objects.all().values("id", "name")
+        rated_by = (
+            User.objects.filter(
+                consultant_rated_calls__uuid__in=visible_uuids
+            )
+            .distinct()
+            .values("id", "username")
+        )
+
+        # --------------------
+        # TAGS (ONLY FROM VISIBLE CALLS)
+        # --------------------
+        tag_ids = (
+            Call.objects.filter(uuid__in=visible_uuids, tags__isnull=False)
+            .values_list("tags__id", flat=True)
+            .distinct()
+        )
+
+        tags = Tag.objects.filter(id__in=tag_ids).values("id", "name")
 
         return Response({
             "languages": list(languages),
@@ -165,15 +245,13 @@ class CallFilterOptionsView(APIView):
             "rated_by": list(rated_by),
             "tags": list(tags),
         })
-    
-from .services import check_lock_expiry, LOCK_DURATION
-
+# ------------------------
+# CONSULTANT CALL DETAIL
+# ------------------------
 class ConsultantCallDetailAPIView(APIView):
-
     permission_classes = [IsAuthenticated]
 
     def get(self, request, call_uuid):
-
         try:
             ch_call = CallCH.objects.using("clickhouse").get(uuid=call_uuid)
         except CallCH.DoesNotExist:
@@ -184,7 +262,6 @@ class ConsultantCallDetailAPIView(APIView):
             defaults={"attempt_on_time_stamp": ch_call.attempt_on_time_stamp}
         )
 
-        # check if lock expired
         check_lock_expiry(call)
 
         is_locked = call.rating_locked
@@ -211,7 +288,6 @@ class ConsultantCallDetailAPIView(APIView):
                 "attempt_on_time_stamp": ch_call.attempt_on_time_stamp,
                 "status": call.get_status_display()
             },
-
             "metrics": [
                 {
                     "name": m.name,
@@ -221,7 +297,6 @@ class ConsultantCallDetailAPIView(APIView):
                 }
                 for m in metrics
             ],
-
             "comments": call.consultant_comment or "",
             "is_locked": is_locked
         }
@@ -229,12 +304,13 @@ class ConsultantCallDetailAPIView(APIView):
         return Response(data)
 
 
+# ------------------------
+# LEAD CALL DETAIL
+# ------------------------
 class LeadCallDetailAPIView(APIView):
-
     permission_classes = [IsAuthenticated]
 
     def get(self, request, call_uuid):
-
         # ------------------------
         # GET CLICKHOUSE CALL
         # ------------------------
@@ -282,7 +358,6 @@ class LeadCallDetailAPIView(APIView):
             )
 
         consultant_list = []
-
         for r in consultant_ratings:
             consultant_list.append({
                 "metric": r.parameter.name,
@@ -311,7 +386,6 @@ class LeadCallDetailAPIView(APIView):
         tags = Tag.objects.all()
 
         data = {
-
             "metadata": {
                 "uuid": ch_call.uuid,
                 "schema_name": ch_call.schema_name,
@@ -321,13 +395,11 @@ class LeadCallDetailAPIView(APIView):
                 "attempt_on_time_stamp": ch_call.attempt_on_time_stamp,
                 "status": call.get_status_display(),
             },
-
             "consultant_review": {
                 "ratings": consultant_list,
                 "comment": call.consultant_comment,
                 "timestamp": call.rated_at
             },
-
             "metrics": [
                 {
                     "name": m.name,
@@ -337,20 +409,20 @@ class LeadCallDetailAPIView(APIView):
                 }
                 for m in metrics
             ],
-
             "lead_comment": call.lead_comment,
             "status": call.status,
-
             "tag_options": [
                 {"id": t.id, "name": t.name} for t in tags
             ],
-
             "selected_tags": [t.id for t in call.tags.all()]
         }
 
         return Response(data)
 
 
+# ------------------------
+# LEAD SUBMIT
+# ------------------------
 class LeadSubmitReviewAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -359,15 +431,18 @@ class LeadSubmitReviewAPIView(APIView):
         ratings = request.data.get("ratings", {})
         comment = request.data.get("comment")
         tags = request.data.get("tags", [])
-        status = request.data.get("status")
+        new_status = request.data.get("status")
 
         try:
-            status = int(status)
+            new_status = int(new_status)
         except (TypeError, ValueError):
             return Response({"error": "Valid status is required"}, status=400)
 
-        if status not in [3, 4]:
-            return Response({"error": "Status must be 3 (Need Fix) or 4 (Approved)"}, status=400)
+        if new_status not in [3, 4]:
+            return Response(
+                {"error": "Status must be 3 (Need Fix) or 4 (Approved)"},
+                status=400
+            )
 
         call = Call.objects.get(uuid=call_uuid)
 
@@ -382,7 +457,9 @@ class LeadSubmitReviewAPIView(APIView):
             for metric_name, rating in ratings.items():
                 if rating in [None, ""]:
                     continue
+
                 metric = EvaluationMetric.objects.get(name=metric_name)
+
                 EvaluationCallRating.objects.update_or_create(
                     call=call,
                     parameter=metric,
@@ -391,7 +468,7 @@ class LeadSubmitReviewAPIView(APIView):
                 )
 
             # Update call only after status is confirmed
-            call.update_status(int(status))
+            call.update_status(new_status)
             call.lead_comment = comment
             call.reviewed_by = request.user
             call.reviewed_at = timezone.now()
@@ -402,3 +479,56 @@ class LeadSubmitReviewAPIView(APIView):
                 release_lock(call)
 
         return Response({"message": "Lead review submitted"})
+
+
+# ------------------------
+# AUDIO API
+# ------------------------
+class CallAudioAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, call_uuid):
+        # 1. Fetch call metadata from ClickHouse
+        try:
+            ch_call = CallCH.objects.using("clickhouse").get(uuid=call_uuid)
+        except CallCH.DoesNotExist:
+            return Response({"error": "Call not found"}, status=404)
+
+        # 2. Extract tenant + date
+        tenant_id = ch_call.schema_name
+        ts = ch_call.attempt_on_time_stamp
+
+        year = ts.strftime("%Y")
+        month = ts.strftime("%m")
+        day = ts.strftime("%d")
+
+        # 3. Build S3 folder prefix
+        prefix = f"media/{tenant_id}/freeswitch/{year}/{month}/{day}/{call_uuid}/"
+
+        # 4. Find actual .wav file inside folder
+        audio_key = find_audio_file(settings.AWS_STORAGE_BUCKET_NAME, prefix)
+
+        if not audio_key:
+            return Response(
+                {
+                    "error": "Audio file not found",
+                    "searched_prefix": prefix
+                },
+                status=404
+            )
+
+        # 5. Generate signed URL
+        signed_url = generate_signed_url(
+            settings.AWS_STORAGE_BUCKET_NAME,
+            audio_key,
+            expires_in=300
+        )
+
+        # 6. OPTIONAL: log access event
+        print(f"[AUDIO_ACCESS] user={request.user.id} uuid={call_uuid} key={audio_key}")
+
+        return Response({
+            "audio_url": signed_url,
+            "audio_key": audio_key,   # useful for testing, remove later in production
+            "expires_in": 300
+        })
