@@ -335,7 +335,7 @@ class LeadCallDetailAPIView(APIView):
         # ------------------------
         # ACQUIRE LOCK FOR LEAD
         # ------------------------
-        if call.status == 2:
+        if call.status not in [3, 4]:
             try:
                 acquire_lock(call, request.user)
             except Exception:
@@ -446,11 +446,11 @@ class LeadSubmitReviewAPIView(APIView):
 
         call = Call.objects.get(uuid=call_uuid)
 
-        if call.status not in [2, 3, 4]:
-            return Response(
-                {"error": "Consultant must complete review first"},
-                status=403
-            )
+        # if call.status not in [2, 3, 4]:
+        #     return Response(
+        #         {"error": "Consultant must complete review first"},
+        #         status=403
+        #     )
 
         with transaction.atomic():
             # Save ratings

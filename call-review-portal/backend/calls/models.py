@@ -118,6 +118,10 @@ class EvaluationCallRating(models.Model):
     def clean(self):
         if not (self.parameter.min_value <= self.rating <= self.parameter.max_value):
             raise ValidationError("Rating out of allowed range")
+        
+    def save(self, *args, **kwargs):
+        self.full_clean()   # this calls clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.call.uuid} - {self.parameter.name}"
