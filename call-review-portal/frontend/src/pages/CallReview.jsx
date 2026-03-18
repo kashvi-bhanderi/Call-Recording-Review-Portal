@@ -4,6 +4,7 @@ import axiosInstance from "../api/axiosInstance";
 import AudioPlayer from "../components/AudioPlayer";
 import DashboardHeader from "../components/DashboardHeader";
 import "./CallReview.css";
+
 const CallReview = () => {
   const { uuid } = useParams();
 
@@ -11,6 +12,9 @@ const CallReview = () => {
   const [metrics, setMetrics] = useState([]);
   const [comments, setComments] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
+
+  const [leadMetrics, setLeadMetrics] = useState([]);
+  const [leadComment, setLeadComment] = useState("");
 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -28,22 +32,25 @@ const CallReview = () => {
       setMetadata(detailRes.data.metadata || {});
       setMetrics(detailRes.data.metrics || []);
       setComments(detailRes.data.comments || "");
+      setLeadMetrics(detailRes.data.lead_metrics || []);
+      setLeadComment(detailRes.data.lead_comment || "");
+
+      const rated = (detailRes.data.metrics || []).some(
+        (m) => m.value !== null && m.value !== ""
+      );
 
       if (detailRes.data.is_locked) {
         setIsEditable(false);
         setIsSubmitted(true);
-        setLockMessage("Lead is reviewing this call. Editing temporarily disabled.");
-      } else if (["Need Fix", "Approved"].includes(detailRes.data.metadata?.status)) {
-        setIsEditable(false);
-        setIsSubmitted(true);
-        setLockMessage("Lead reviewed this call. You cannot update.");
+
+        if (detailRes.data.lock_reason === "permanent") {
+          setLockMessage("Lead reviewed this call. You cannot update it.");
+        } else {
+          setLockMessage("Lead is reviewing this call. Editing temporarily disabled");
+        }
       } else {
         setIsEditable(true);
         setLockMessage("");
-
-        const rated = (detailRes.data.metrics || []).some(
-          (m) => m.value !== null && m.value !== ""
-        );
         setIsSubmitted(rated);
       }
 
@@ -92,7 +99,9 @@ const CallReview = () => {
       }));
     } catch (err) {
       console.error("Submit failed:", err);
-      alert("Failed to submit review");
+      const msg = err.response?.data?.error || "Failed to submit review";
+      alert(msg);
+      fetchCall();
     }
   };
 
@@ -191,6 +200,39 @@ const CallReview = () => {
               </p>
             )}
           </div>
+
+          {leadMetrics.length > 0 && (
+            <div className="rating-panel">
+              <h3>Lead Final Review</h3>
+
+              {leadMetrics.map((m) => (
+                <div key={m.name} className="metric">
+                  <label>{m.name}</label>
+                  <input
+                    type="number"
+                    min={m.min}
+                    max={m.max}
+                    value={m.value ?? ""}
+                    disabled={true}
+                    readOnly
+                  />
+                  <p
+                    className="rating-range"
+                    style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}
+                  >
+                    Allowed: {m.min} - {m.max}
+                  </p>
+                </div>
+              ))}
+
+              <textarea
+                placeholder="Lead Comment"
+                value={leadComment}
+                disabled={true}
+                readOnly
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

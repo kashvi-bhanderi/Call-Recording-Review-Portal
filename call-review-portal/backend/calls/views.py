@@ -264,16 +264,34 @@ class ConsultantCallDetailAPIView(APIView):
 
         check_lock_expiry(call)
 
-        is_locked = call.rating_locked
+        is_locked = call.rating_locked or call.status in [3, 4]
+
+        lock_reason = None
+        if call.status in [3, 4]:
+            lock_reason = "permanent"
+        elif call.rating_locked:
+            lock_reason = "temporary"
 
         metrics = EvaluationMetric.objects.filter(is_active=True)
 
-        ratings = EvaluationCallRating.objects.filter(
+        # Consultant's own ratings (always shown)
+        consultant_ratings = EvaluationCallRating.objects.filter(
             call=call,
             rated_by=request.user
         )
+        consultant_ratings_map = {r.parameter.name: r.rating for r in consultant_ratings}
 
-        ratings_map = {r.parameter.name: r.rating for r in ratings}
+        # Lead ratings (shown only after lead submits)
+        lead_ratings_map = {}
+        lead_comment = ""
+
+        if call.status in [3, 4] and call.reviewed_by_id:
+            lead_ratings = EvaluationCallRating.objects.filter(
+                call=call,
+                rated_by_id=call.reviewed_by_id
+            )
+            lead_ratings_map = {r.parameter.name: r.rating for r in lead_ratings}
+            lead_comment = call.lead_comment or ""
 
         lang_obj = Language.objects.filter(language=ch_call.language).first()
         language_name = lang_obj.language_name if lang_obj else ch_call.language
@@ -293,17 +311,26 @@ class ConsultantCallDetailAPIView(APIView):
                     "name": m.name,
                     "min": m.min_value,
                     "max": m.max_value,
-                    "value": ratings_map.get(m.name)
+                    "value": consultant_ratings_map.get(m.name)
                 }
                 for m in metrics
             ],
+            "lead_metrics": [
+                {
+                    "name": m.name,
+                    "min": m.min_value,
+                    "max": m.max_value,
+                    "value": lead_ratings_map.get(m.name)
+                }
+                for m in metrics
+            ] if call.status in [3, 4] and call.reviewed_by_id else [],
             "comments": call.consultant_comment or "",
-            "is_locked": is_locked
+            "lead_comment": lead_comment,
+            "is_locked": is_locked,
+            "lock_reason": lock_reason
         }
 
         return Response(data)
-
-
 # ------------------------
 # LEAD CALL DETAIL
 # ------------------------
