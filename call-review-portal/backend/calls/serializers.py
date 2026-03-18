@@ -73,13 +73,32 @@ class DashboardCallSerializer(serializers.ModelSerializer):
     def get_overall_rating(self, obj):
         calls_map = self.context.get("calls_map", {})
         call = calls_map.get(obj.uuid)
-        if call:
-            ratings = call.evaluationcallrating_set.all()
-            if ratings.exists():
-                total = sum(r.rating for r in ratings)
-                return round(total / ratings.count(), 2)
-        return None
 
+        if not call:
+            return None
+
+        ratings = call.evaluationcallrating_set.all()
+
+        if not ratings.exists():
+            return None
+
+        # If lead has submitted review, reviewed_by stores the lead user
+        if call.reviewed_by_id:
+            lead_ratings = ratings.filter(rated_by_id=call.reviewed_by_id)
+            if lead_ratings.exists():
+                total = sum(r.rating for r in lead_ratings)
+                return round(total / lead_ratings.count(), 2)
+
+        # Otherwise (or fallback), show consultant ratings
+        consultant_ratings = ratings
+        if call.reviewed_by_id:
+            consultant_ratings = consultant_ratings.exclude(rated_by_id=call.reviewed_by_id)
+
+        if consultant_ratings.exists():
+            total = sum(r.rating for r in consultant_ratings)
+            return round(total / consultant_ratings.count(), 2)
+
+        return None
     # ------------------------
     # DURATION DISPLAY
     # ------------------------
