@@ -1,0 +1,27 @@
+.star-rating {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.star {
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: #d1d5db;
+  transition: transform 0.15s ease, color 0.2s ease;
+  user-select: none;
+}
+
+.star:hover {
+  transform: scale(1.08);
+}
+
+.star.filled {
+  color: #fbbf24;
+}
+
+.star.readonly {
+  cursor: default;
+}

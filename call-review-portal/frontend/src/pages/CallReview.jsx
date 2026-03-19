@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import AudioPlayer from "../components/AudioPlayer";
 import DashboardHeader from "../components/DashboardHeader";
+import StarRating from "../components/starrating";
 import "./CallReview.css";
 
 const CallReview = () => {
@@ -148,25 +149,42 @@ const CallReview = () => {
             {metrics.length === 0 ? (
               <p style={{ color: "#666" }}>No metrics available</p>
             ) : (
-              metrics.map((m) => (
-                <div key={m.name} className="metric">
-                  <label>{m.name}</label>
-                  <input
-                    type="number"
-                    min={m.min}
-                    max={m.max}
-                    value={m.value ?? ""}
-                    disabled={!isEditable || (isSubmitted && !isEditing)}
-                    onChange={(e) => handleRatingChange(m.name, e.target.value)}
-                  />
-                  <p
-                    className="rating-range"
-                    style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}
-                  >
-                    Allowed: {m.min} - {m.max}
-                  </p>
-                </div>
-              ))
+              metrics.map((m) => {
+                const disabled = !isEditable || (isSubmitted && !isEditing);
+                const useStars = Number(m.max) <= 5;
+
+                return (
+                  <div key={m.name} className="metric">
+                    <label>{m.name}</label>
+
+                    {useStars ? (
+                      <StarRating
+                        value={m.value ?? 0}
+                        min={Number(m.min) || 1}
+                        max={Number(m.max) || 5}
+                        disabled={disabled}
+                        onChange={(val) => handleRatingChange(m.name, val)}
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        min={m.min}
+                        max={m.max}
+                        value={m.value ?? ""}
+                        disabled={disabled}
+                        onChange={(e) => handleRatingChange(m.name, e.target.value)}
+                      />
+                    )}
+
+                    <p
+                      className="rating-range"
+                      style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}
+                    >
+                      Allowed: {m.min} - {m.max}
+                    </p>
+                  </div>
+                );
+              })
             )}
 
             <textarea
@@ -205,25 +223,41 @@ const CallReview = () => {
             <div className="rating-panel">
               <h3>Lead Final Review</h3>
 
-              {leadMetrics.map((m) => (
-                <div key={m.name} className="metric">
-                  <label>{m.name}</label>
-                  <input
-                    type="number"
-                    min={m.min}
-                    max={m.max}
-                    value={m.value ?? ""}
-                    disabled={true}
-                    readOnly
-                  />
-                  <p
-                    className="rating-range"
-                    style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}
-                  >
-                    Allowed: {m.min} - {m.max}
-                  </p>
-                </div>
-              ))}
+              {leadMetrics.map((m) => {
+                const useStars = Number(m.max) <= 5;
+
+                return (
+                  <div key={m.name} className="metric">
+                    <label>{m.name}</label>
+
+                    {useStars ? (
+                      <StarRating
+                        value={m.value ?? 0}
+                        min={Number(m.min) || 1}
+                        max={Number(m.max) || 5}
+                        disabled={true}
+                        readOnly={true}
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        min={m.min}
+                        max={m.max}
+                        value={m.value ?? ""}
+                        disabled={true}
+                        readOnly
+                      />
+                    )}
+
+                    <p
+                      className="rating-range"
+                      style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}
+                    >
+                      Allowed: {m.min} - {m.max}
+                    </p>
+                  </div>
+                );
+              })}
 
               <textarea
                 placeholder="Lead Comment"

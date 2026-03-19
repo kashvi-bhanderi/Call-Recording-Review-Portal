@@ -1,16 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import AudioPlayer from "../components/AudioPlayer";
 import "./LeadReview.css";
 import "./CallReview.css";
-
 import DashboardHeader from "../components/DashboardHeader";
+import StarRating from "../components/starrating";
 
 const LeadReview = () => {
   const { uuid } = useParams();
-
-
 
   const [metadata, setMetadata] = useState({});
   const [consultant, setConsultant] = useState({});
@@ -28,7 +26,7 @@ const LeadReview = () => {
 
   useEffect(() => {
     fetchCall();
-  }, []);
+  }, [uuid]);
 
   const fetchCall = async () => {
     try {
@@ -37,26 +35,28 @@ const LeadReview = () => {
         axiosInstance.get(`/calls/audio/${uuid}/`),
       ]);
 
-      setMetadata(detailRes.data.metadata);
-      setConsultant(detailRes.data.consultant_review);
-      setMetrics(detailRes.data.metrics);
+      setMetadata(detailRes.data.metadata || {});
+      setConsultant(detailRes.data.consultant_review || {});
+      setMetrics(detailRes.data.metrics || []);
       setAudioUrl(audioRes.data.audio_url || "");
 
       setLeadComment(detailRes.data.lead_comment || "");
       setStatus(detailRes.data.status ?? "");
 
-      setTagOptions(detailRes.data.tag_options);
+      setTagOptions(detailRes.data.tag_options || []);
       setTags(detailRes.data.selected_tags || []);
 
       const statusFinalized = ["Need Fix", "Approved"].includes(
-        detailRes.data.metadata.status
+        detailRes.data.metadata?.status
       );
 
       if (statusFinalized) {
         setIsSubmitted(true);
         setIsEditing(false);
       } else {
-        const rated = detailRes.data.metrics.some((m) => m.value !== null);
+        const rated = (detailRes.data.metrics || []).some(
+          (m) => m.value !== null && m.value !== ""
+        );
         setIsSubmitted(rated);
       }
     } catch (err) {
@@ -93,7 +93,7 @@ const LeadReview = () => {
         tags: tags.map(Number),
       });
 
-      alert("Lead Review Submitted");
+      alert(isEditing ? "Lead Review Updated" : "Lead Review Submitted");
 
       setIsSubmitted(true);
       setIsEditing(false);
@@ -110,19 +110,22 @@ const LeadReview = () => {
       <div className="review-container">
         <DashboardHeader title="Lead Dashboard" />
 
-        {/* AUDIO PLAYER */}
-        <AudioPlayer audioUrl={audioUrl} />
+        {audioUrl ? (
+          <AudioPlayer audioUrl={audioUrl} />
+        ) : (
+          <div className="audio-unavailable">Audio not available</div>
+        )}
 
         <div className="review-body">
           {/* Metadata */}
           <div className="metadata">
             <h3>Call Metadata</h3>
 
-            <p><b>Schema:</b> {metadata.schema_name}</p>
-            <p><b>Language:</b> {metadata.language}</p>
-            <p><b>UUID:</b> {metadata.uuid}</p>
-            <p><b>Phone:</b> {metadata.phone_number}</p>
-            <p><b>Date:</b> {metadata.attempt_on_time_stamp}</p>
+            <p><b>Schema:</b> {metadata.schema_name || "-"}</p>
+            <p><b>Language:</b> {metadata.language || "-"}</p>
+            <p><b>UUID:</b> {metadata.uuid || "-"}</p>
+            <p><b>Phone:</b> {metadata.phone_number || "-"}</p>
+            <p><b>Date:</b> {metadata.attempt_on_time_stamp || "-"}</p>
 
             <p>
               <b>Duration:</b>{" "}
@@ -134,11 +137,11 @@ const LeadReview = () => {
             <p>
               <b>Status:</b>{" "}
               <span
-                className={`status-badge status-${metadata.status
-                  ?.toLowerCase()
+                className={`status-badge status-${(metadata.status || "")
+                  .toLowerCase()
                   .replace(/\s+/g, "")}`}
               >
-                {metadata.status}
+                {metadata.status || "-"}
               </span>
             </p>
           </div>
@@ -147,20 +150,45 @@ const LeadReview = () => {
           <div className="rating-panel">
             <h3>Lead Review</h3>
 
-            {metrics.map((m, i) => (
-              <div key={i} className="metric">
-                <label>{m.name}</label>
+            {metrics.length === 0 ? (
+              <p style={{ color: "#666" }}>No metrics available</p>
+            ) : (
+              metrics.map((m, i) => {
+                const useStars = Number(m.max) <= 5;
 
-                <input
-                  type="number"
-                  min={m.min}
-                  max={m.max}
-                  value={m.value ?? ""}
-                  disabled={isSubmitted && !isEditing}
-                  onChange={(e) => handleRatingChange(m.name, e.target.value)}
-                />
-              </div>
-            ))}
+                return (
+                  <div key={i} className="metric">
+                    <label>{m.name}</label>
+
+                    {useStars ? (
+                      <StarRating
+                        value={m.value ?? 0}
+                        min={Number(m.min) || 1}
+                        max={Number(m.max) || 5}
+                        disabled={isSubmitted && !isEditing}
+                        onChange={(val) => handleRatingChange(m.name, val)}
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        min={m.min}
+                        max={m.max}
+                        value={m.value ?? ""}
+                        disabled={isSubmitted && !isEditing}
+                        onChange={(e) => handleRatingChange(m.name, e.target.value)}
+                      />
+                    )}
+
+                    <p
+                      className="rating-range"
+                      style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}
+                    >
+                      Allowed: {m.min} - {m.max}
+                    </p>
+                  </div>
+                );
+              })
+            )}
 
             <textarea
               placeholder="Lead Comment"
@@ -170,7 +198,7 @@ const LeadReview = () => {
             />
 
             <select
-              value={status || ""}
+              value={status === null || status === undefined ? "" : status}
               disabled={isSubmitted && !isEditing}
               onChange={(e) => {
                 const val = e.target.value;
@@ -197,7 +225,6 @@ const LeadReview = () => {
               ))}
             </select>
 
-            {/* BUTTON LOGIC */}
             {!isSubmitted && (
               <button className="submit-btn" onClick={submitReview}>
                 Submit
@@ -221,16 +248,35 @@ const LeadReview = () => {
           <div className="rating-panel">
             <h3>Consultant Review</h3>
 
-            {consultant.ratings?.map((r, i) => (
-              <div key={i} className="metric">
-                <label>{r.metric}</label>
-                <input value={r.value ?? ""} readOnly />
-              </div>
-            ))}
+            {consultant.ratings?.length > 0 ? (
+              consultant.ratings.map((r, i) => {
+                const useStars = Number(r.max || 5) <= 5;
+
+                return (
+                  <div key={i} className="metric">
+                    <label>{r.metric}</label>
+
+                    {useStars ? (
+                      <StarRating
+                        value={r.value ?? 0}
+                        min={Number(r.min) || 1}
+                        max={Number(r.max) || 5}
+                        disabled={true}
+                        readOnly={true}
+                      />
+                    ) : (
+                      <input value={r.value ?? ""} readOnly />
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <p style={{ color: "#666" }}>No consultant review available</p>
+            )}
 
             <textarea value={consultant.comment || ""} readOnly />
 
-            <p>Submitted: {consultant.timestamp}</p>
+            <p>Submitted: {consultant.timestamp || "-"}</p>
           </div>
         </div>
       </div>
