@@ -5,7 +5,9 @@
   padding: 20px;
   box-sizing: border-box;
 }
-
+.table-card {
+  overflow-x: auto;
+}
 /* ================= Container ================= */
 .dashboard-container {
   width: 100%;

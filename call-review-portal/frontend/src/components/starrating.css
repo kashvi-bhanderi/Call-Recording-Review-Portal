@@ -1,25 +1,30 @@
 .star-rating {
-  display: flex;
-  gap: 6px;
+  display: inline-flex;
   align-items: center;
-  margin-top: 6px;
+  gap: 4px;
+  margin: 0;              /* remove extra top space */
+  height: 26px;           /* same as star size */
 }
 
 .star {
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   cursor: pointer;
   color: #d1d5db;
   transition: transform 0.15s ease, color 0.2s ease;
-  user-select: none;
-}
-
-.star:hover {
-  transform: scale(1.08);
 }
 
 .star.filled {
   color: #fbbf24;
+}
+
+.star:hover {
+  transform: scale(1.1);
 }
 
 .star.readonly {

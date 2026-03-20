@@ -14,7 +14,9 @@ class DashboardCallSerializer(serializers.ModelSerializer):
     rated_by_name = serializers.SerializerMethodField()
     tags_display = serializers.SerializerMethodField()
     attempt_on_time_stamp = serializers.DateTimeField()
-
+    metrics = serializers.SerializerMethodField()
+    is_locked = serializers.SerializerMethodField()
+    lock_message = serializers.SerializerMethodField()
     class Meta:
         model = CallCH
         fields = [
@@ -30,6 +32,9 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             "rated_by_name",
             "tags_display",
             "attempt_on_time_stamp",
+            "metrics",
+            "is_locked",
+            "lock_message",
         ]
 
     # ------------------------
@@ -119,7 +124,59 @@ class DashboardCallSerializer(serializers.ModelSerializer):
         seconds = obj.duration % 60
         return f"{minutes}m {seconds}s"
 
+    def get_metrics(self, obj):
+        calls_map = self.context.get("calls_map", {})
+        call = calls_map.get(obj.uuid)
 
+        metrics = EvaluationMetric.objects.all()
+
+        result = []
+
+        for metric in metrics:
+            value = None
+
+            if call:
+                rating = EvaluationCallRating.objects.filter(
+                    call=call,
+                    parameter=metric
+                ).first()
+
+                if rating:
+                    value = rating.rating
+
+            result.append({
+                "name": metric.name,
+                "min": metric.min_value,
+                "max": metric.max_value,
+                "value": value
+            })
+
+        return result
+    def get_is_locked(self, obj):
+        calls_map = self.context.get("calls_map", {})
+        call = calls_map.get(obj.uuid)
+
+        if not call:
+            return False
+
+        return call.rating_locked or call.status in [3, 4]
+
+
+    def get_lock_message(self, obj):
+        calls_map = self.context.get("calls_map", {})
+        call = calls_map.get(obj.uuid)
+
+        if not call:
+            return ""
+
+        if call.status in [3, 4]:
+            return "Lead reviewed this call. You cannot update it."
+        
+        if call.rating_locked:
+            return "Lead is reviewing this call. Editing temporarily disabled"
+
+        return ""
+    
 class EvaluationCallRatingSerializer(serializers.Serializer):
     call_uuid = serializers.CharField()
     ratings = serializers.DictField(

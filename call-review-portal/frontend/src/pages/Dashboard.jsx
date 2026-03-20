@@ -1,8 +1,12 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import "./Dashboard.css";
 import DashboardHeader from "../components/DashboardHeader";
+import MiniAudioPlayer from "../components/MiniAudioPlayer";
+import StarRating from "../components/starrating";
+
 const Dashboard = ({ role }) => {
   const navigate = useNavigate();
 
@@ -38,22 +42,42 @@ const Dashboard = ({ role }) => {
     tags: [],
   });
 
+  const [audioMap, setAudioMap] = useState({});
+  const [rowData, setRowData] = useState({});
+  const [submittingMap, setSubmittingMap] = useState({});
+
   /* ================= FETCH CALLS ================= */
-  const fetchCalls = async (customFilters = filters, customPage = page, customSortBy = sortBy) => {
+  const fetchCalls = async (
+    customFilters = filters,
+    customPage = page,
+    customSortBy = sortBy
+  ) => {
     setLoading(true);
 
     try {
       const params = {
         page: customPage,
         ordering: customSortBy,
-        ...(customFilters.template_id && { template_id: customFilters.template_id }),
-        ...(customFilters.phone_number && { phone_number: customFilters.phone_number }),
+        ...(role === "lead" &&
+          customFilters.template_id && { template_id: customFilters.template_id }),
+        ...(role === "lead" &&
+          customFilters.phone_number && { phone_number: customFilters.phone_number }),
         ...(customFilters.uuid && { uuid: customFilters.uuid }),
-        ...(customFilters.language.length && { language: customFilters.language.join(",") }),
-        ...(customFilters.schema_name.length && { schema_name: customFilters.schema_name.join(",") }),
-        ...(customFilters.status.length && { status: customFilters.status.join(",") }),
-        ...(customFilters.created_after && { created_after: customFilters.created_after }),
-        ...(customFilters.created_before && { created_before: customFilters.created_before }),
+        ...(customFilters.language.length && {
+          language: customFilters.language.join(","),
+        }),
+        ...(customFilters.schema_name.length && {
+          schema_name: customFilters.schema_name.join(","),
+        }),
+        ...(customFilters.status.length && {
+          status: customFilters.status.join(","),
+        }),
+        ...(customFilters.created_after && {
+          created_after: customFilters.created_after,
+        }),
+        ...(customFilters.created_before && {
+          created_before: customFilters.created_before,
+        }),
       };
 
       if (role === "lead") {
@@ -71,6 +95,23 @@ const Dashboard = ({ role }) => {
 
       const totalCount = response.data.count ?? results.length;
       setTotalPages(Math.ceil(totalCount / PAGE_SIZE));
+
+      if (role === "consultant") {
+        const initialRowData = {};
+        results.forEach((call) => {
+          const rated = (call.metrics || []).some(
+            (m) => m.value !== null && m.value !== ""
+          );
+
+          initialRowData[call.uuid] = {
+            metrics: call.metrics || [],
+            isSubmitted: rated,
+          };
+        });
+        setRowData(initialRowData);
+
+        fetchAudioForCalls(results);
+      }
     } catch (error) {
       console.error("Error fetching calls:", error);
 
@@ -81,6 +122,25 @@ const Dashboard = ({ role }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  /* ================= FETCH AUDIO FOR CONSULTANT DASHBOARD ================= */
+  const fetchAudioForCalls = async (callsList) => {
+    const newAudioMap = {};
+
+    await Promise.all(
+      callsList.map(async (call) => {
+        try {
+          const res = await axiosInstance.get(`/calls/audio/${call.uuid}/`);
+          newAudioMap[call.uuid] = res.data.audio_url || "";
+        } catch (err) {
+          console.warn(`Audio fetch failed for ${call.uuid}`, err);
+          newAudioMap[call.uuid] = "";
+        }
+      })
+    );
+
+    setAudioMap(newAudioMap);
   };
 
   /* ================= FETCH FILTER OPTIONS ================= */
@@ -108,8 +168,6 @@ const Dashboard = ({ role }) => {
     fetchCalls(filters, page, sortBy);
     // eslint-disable-next-line
   }, [page, sortBy]);
-
-  /* ================= LOGOUT ================= */
 
   /* ================= HANDLERS ================= */
   const handleChange = (e) => {
@@ -145,8 +203,107 @@ const Dashboard = ({ role }) => {
     fetchCalls(clearedFilters, 1, "-attempt_on_time_stamp");
   };
 
+  /* ================= CONSULTANT INLINE RATING ================= */
+  const areAllMetricsFilled = (metrics) => {
+  return metrics.length > 0 && metrics.every((m) => Number(m.value) > 0);
+};
+  const handleMetricChange = (uuid, metricName, value) => {
+  setRowData((prev) => {
+    const updatedMetrics = (prev[uuid]?.metrics || []).map((m) =>
+      m.name === metricName ? { ...m, value } : m
+    );
+
+    const isSubmitted = prev[uuid]?.isSubmitted;
+    const isLocked = calls.find((c) => c.uuid === uuid)?.is_locked;
+
+    // ✅ AUTO SAVE CONDITION
+    if (!isSubmitted && !isLocked && areAllMetricsFilled(updatedMetrics)) {
+      autoSubmitReview(uuid, updatedMetrics);
+      if (submittingMap[uuid]) return;
+    }
+
+    return {
+      ...prev,
+      [uuid]: {
+        ...prev[uuid],
+        metrics: updatedMetrics,
+      },
+    };
+  });
+};
+
+  const submitInlineReview = async (uuid) => {
+    try {
+      setSubmittingMap((prev) => ({ ...prev, [uuid]: true }));
+
+      const currentRow = rowData[uuid];
+      const ratings = {};
+
+      (currentRow?.metrics || []).forEach((m) => {
+        if (m.value !== null && m.value !== "") {
+          ratings[m.name] = Number(m.value);
+        }
+      });
+
+      await axiosInstance.post("/calls/consultant-rating/", {
+        call_uuid: uuid,
+        ratings,
+        comments: "",
+      });
+      setRowData((prev) => ({
+        ...prev,
+        [uuid]: {
+          ...prev[uuid],
+          isSubmitted: true,
+
+        },
+      }));
+
+      alert("Review submitted successfully");
+      fetchCalls(filters, page, sortBy);
+    } catch (err) {
+      console.error("Inline submit failed:", err);
+      const msg = err.response?.data?.error || "Failed to submit review";
+      alert(msg);
+      fetchCalls(filters, page, sortBy);
+    } finally {
+      setSubmittingMap((prev) => ({ ...prev, [uuid]: false }));
+    }
+  };
+  const autoSubmitReview = async (uuid, metrics) => {
+  try {
+    setSubmittingMap((prev) => ({ ...prev, [uuid]: true }));
+
+    const ratings = {};
+    metrics.forEach((m) => {
+      ratings[m.name] = Number(m.value);
+    });
+
+    await axiosInstance.post("/calls/consultant-rating/", {
+      call_uuid: uuid,
+      ratings,
+      comments: "",
+    });
+
+    setRowData((prev) => ({
+      ...prev,
+      [uuid]: {
+        ...prev[uuid],
+        isSubmitted: true,
+      },
+    }));
+
+    // optional: refresh for lock sync
+    fetchCalls(filters, page, sortBy);
+
+  } catch (err) {
+    console.error("Auto submit failed:", err);
+  } finally {
+    setSubmittingMap((prev) => ({ ...prev, [uuid]: false }));
+  }
+};
   /* ================= TABLE COLUMNS ================= */
-  const baseColumns = [
+  const leadColumns = [
     { key: "template_id", label: "Template ID" },
     { key: "language_name", label: "Language" },
     { key: "organization_name", label: "Organization" },
@@ -156,43 +313,56 @@ const Dashboard = ({ role }) => {
     { key: "duration_display", label: "Duration" },
     { key: "status_display", label: "Review Status" },
     { key: "overall_rating", label: "Overall Rating" },
-  ];
-
-  const leadColumns = [
     { key: "rated_by_name", label: "Rated By" },
     { key: "tags_display", label: "Tags" },
   ];
 
-  const columns = role === "lead" ? [...baseColumns, ...leadColumns] : baseColumns;
+  const consultantColumns = [
+    { key: "language_name", label: "Language" },
+    { key: "organization_name", label: "Organization" },
+    { key: "uuid", label: "Call UUID" },
+    { key: "attempt_on_time_stamp", label: "Call Date & Time" },
+    { key: "duration_display", label: "Duration" },
+    { key: "status_display", label: "Review Status" },
+    { key: "audio", label: "Audio" },
+    { key: "inline_rating", label: "Rating" },
+  ];
+
+  const columns = role === "lead" ? leadColumns : consultantColumns;
 
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
-        {/* Header */}
-        <DashboardHeader title={role === "lead" ? "Lead Dashboard" : "Consultant Dashboard"} />
+        <DashboardHeader
+          title={role === "lead" ? "Lead Dashboard" : "Consultant Dashboard"}
+        />
+
         {/* Filters */}
         <div className="filter-card">
           <div className="filter-grid">
-            {/* Row 1 */}
-            <div className="filter-item">
-              <input
-                type="text"
-                name="template_id"
-                placeholder="Template ID"
-                value={filters.template_id}
-                onChange={handleChange}
-              />
-            </div>
+            {role === "lead" && (
+              <>
+                <div className="filter-item">
+                  <input
+                    type="text"
+                    name="template_id"
+                    placeholder="Template ID"
+                    value={filters.template_id}
+                    onChange={handleChange}
+                  />
+                </div>
 
-            <div className="filter-item">
-              <input
-                type="text"
-                name="phone_number"
-                placeholder="Provider Mobile"
-                value={filters.phone_number}
-                onChange={handleChange}
-              />
-            </div>
+                <div className="filter-item">
+                  <input
+                    type="text"
+                    name="phone_number"
+                    placeholder="Provider Mobile"
+                    value={filters.phone_number}
+                    onChange={handleChange}
+                  />
+                </div>
+              </>
+            )}
 
             <div className="filter-item">
               <input
@@ -204,7 +374,6 @@ const Dashboard = ({ role }) => {
               />
             </div>
 
-            {/* Row 2 */}
             <div className="filter-item">
               <select
                 value={sortBy}
@@ -277,7 +446,6 @@ const Dashboard = ({ role }) => {
               </select>
             </div>
 
-            {/* Date Range - takes 2 columns */}
             <div className="filter-item filter-item-span-2">
               <div className="date-range">
                 <input
@@ -296,7 +464,6 @@ const Dashboard = ({ role }) => {
               </div>
             </div>
 
-            {/* Lead only filters */}
             {role === "lead" && (
               <>
                 <div className="filter-item">
@@ -375,15 +542,104 @@ const Dashboard = ({ role }) => {
                 ) : (
                   calls.map((call) => (
                     <tr key={call.uuid}>
-                      {columns.map((col) => (
-                        <td key={col.key}>
-                          {col.key === "attempt_on_time_stamp"
-                            ? call[col.key]
-                              ? new Date(call[col.key]).toLocaleString()
-                              : "-"
-                            : call[col.key] ?? "-"}
-                        </td>
-                      ))}
+                      {columns.map((col) => {
+                        if (col.key === "attempt_on_time_stamp") {
+                          return (
+                            <td key={col.key}>
+                              {call[col.key]
+                                ? new Date(call[col.key]).toLocaleString()
+                                : "-"}
+                            </td>
+                          );
+                        }
+
+                        if (col.key === "audio") {
+                          return (
+                            <td key={col.key} style={{ minWidth: "90px" }}>
+                              {audioMap[call.uuid] ? (
+                                <MiniAudioPlayer src={audioMap[call.uuid]} />
+                              ) : (
+                                <span>Audio not available</span>
+                              )}
+                            </td>
+                          );
+                        }
+
+                        /* ================= REPLACE ONLY THIS BLOCK ================= */
+
+                        if (col.key === "inline_rating") {
+                          const row = rowData[call.uuid] || {};
+                          const rowMetrics = row.metrics || [];
+
+                          const isSubmitted = row.isSubmitted;
+
+                          const isLocked = !!call.is_locked;
+
+                          const disabled = isLocked || isSubmitted;
+
+                          return (
+                            <td key={col.key} style={{ minWidth: "180px" }}>
+                              {rowMetrics.length === 0 ? (
+                                <span>No metrics</span>
+                              ) : (
+                                <>
+                                  {rowMetrics.map((m) => {
+                                    const useStars = Number(m.max) <= 5;
+
+                                    return (
+                                      <div
+                                        key={m.name}
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "space-between",
+                                          marginBottom: "2px",
+                                        }}
+                                      >
+                                        {/* label */}
+                                        <span
+                                          style={{
+                                            fontSize: "12px",
+                                            color: "#555",
+                                            textTransform: "lowercase",
+                                          }}
+                                        >
+                                          {m.name}
+                                        </span>
+
+                                        {/* stars */}
+                                        {useStars ? (
+                                          <StarRating
+                                            value={m.value ?? 0}
+                                            disabled={disabled}
+                                            size={14}
+                                            onChange={(val) =>
+                                              handleMetricChange(call.uuid, m.name, val)
+                                            }
+                                          />
+                                        ) : (
+                                          <input
+                                            type="number"
+                                            value={m.value ?? ""}
+                                            disabled={disabled}
+                                            onChange={(e) =>
+                                              handleMetricChange(call.uuid, m.name, e.target.value)
+                                            }
+                                          />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+
+
+                                </>
+                              )}
+                            </td>
+                          );
+                        }
+
+                        return <td key={col.key}>{call[col.key] ?? "-"}</td>;
+                      })}
 
                       <td>
                         <button
