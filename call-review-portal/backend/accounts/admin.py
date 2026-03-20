@@ -2,12 +2,12 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.core.mail import send_mail
 
-from .models import User, Language
+from .models import User, Language, Organization
 
 
 # Register Language
 admin.site.register(Language)
-
+admin.site.register(Organization)
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -29,6 +29,7 @@ class UserAdmin(BaseUserAdmin):
                 "fields": (
                     "role",
                     "accessible_languages",
+                    "accessible_organizations",
                 )
             },
         ),
@@ -47,6 +48,7 @@ class UserAdmin(BaseUserAdmin):
                     "password2",
                     "role",
                     "accessible_languages",
+                    "accessible_organizations",
                 ),
             },
         ),

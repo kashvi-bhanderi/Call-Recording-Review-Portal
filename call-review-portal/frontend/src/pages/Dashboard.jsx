@@ -149,7 +149,7 @@ const Dashboard = ({ role }) => {
   const baseColumns = [
     { key: "template_id", label: "Template ID" },
     { key: "language_name", label: "Language" },
-    { key: "schema_name", label: "Schema Name" },
+    { key: "organization_name", label: "Organization" },
     { key: "phone_number", label: "Provider Mobile" },
     { key: "uuid", label: "Call UUID" },
     { key: "attempt_on_time_stamp", label: "Call Date & Time" },
@@ -249,10 +249,10 @@ const Dashboard = ({ role }) => {
                   }))
                 }
               >
-                <option value="">Select Schema</option>
+                <option value="">Select Organization</option>
                 {filterOptions.schemas.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                  <option key={s.schema_name} value={s.schema_name}>
+                    {s.org_name}
                   </option>
                 ))}
               </select>

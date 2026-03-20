@@ -1,12 +1,13 @@
 from rest_framework import serializers
 from .models import CallCH, EvaluationCallRating, Tag
-from accounts.models import Language, User
+from accounts.models import Language, User, Organization
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Call, EvaluationCallRating, EvaluationMetric
 
 class DashboardCallSerializer(serializers.ModelSerializer):
     language_name = serializers.SerializerMethodField()
+    organization_name = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
     overall_rating = serializers.SerializerMethodField()
     duration_display = serializers.SerializerMethodField()
@@ -20,6 +21,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             "uuid",
             "template_id",
             "language_name",
+            "organization_name",
             "schema_name",
             "phone_number",
             "duration_display",
@@ -36,7 +38,15 @@ class DashboardCallSerializer(serializers.ModelSerializer):
     def get_language_name(self, obj):
         lang = Language.objects.filter(language=obj.language).first()
         return lang.language_name if lang else obj.language
+    
+    # ------------------------
+    # ORGANIZATION NAME
+    # ------------------------
 
+    def get_organization_name(self, obj):
+        org = Organization.objects.filter(schema_name=obj.schema_name).first()
+        return org.org_name if org else obj.schema_name 
+    
     # ------------------------
     # STATUS DISPLAY
     # ------------------------

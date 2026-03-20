@@ -9,7 +9,7 @@ from django.db import transaction
 from rest_framework.generics import ListAPIView
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Call, CallCH, Tag, EvaluationMetric, EvaluationCallRating
-from accounts.models import Language, User
+from accounts.models import Language, User, Organization
 from .serializers import DashboardCallSerializer, EvaluationCallRatingSerializer
 from .filters import DashboardCallFilter
 from accounts.authentication import CookieJWTAuthentication
@@ -81,6 +81,18 @@ class DashboardCallView(ListAPIView):
                 return queryset.none()
             queryset = queryset.filter(language__in=allowed_languages)
 
+        # ------------------------
+        # ORGANIZATION ACCESS FILTER
+        # ------------------------
+
+        if not user.is_superuser:
+            allowed_schemas = list(
+                user.accessible_organizations.values_list("schema_name", flat=True)
+            )
+            if allowed_schemas:
+                queryset = queryset.filter(schema_name__in=allowed_schemas)
+            else:
+                return queryset.none()
         # ------------------------
         # POSTGRES FILTERING
         # ------------------------
@@ -177,6 +189,29 @@ class CallFilterOptionsView(APIView):
                 })
 
             ch_queryset = ch_queryset.filter(language__in=allowed_languages)
+        # --------------------
+        # ORGANIZATION ACCESS FILTER (SAME AS DASHBOARD)
+        # --------------------
+        if not user.is_superuser:
+            allowed_schemas = list(
+                user.accessible_organizations.values_list("schema_name", flat=True)
+            )
+
+            if not allowed_schemas:
+                return Response({
+                    "languages": [],
+                    "schemas": [],
+                    "statuses": [
+                        {"value": 1, "label": "Not Rated"},
+                        {"value": 2, "label": "Completed"},
+                        {"value": 3, "label": "Need Fix"},
+                        {"value": 4, "label": "Approved"},
+                    ],
+                    "rated_by": [],
+                    "tags": [],
+                })
+
+            ch_queryset = ch_queryset.filter(schema_name__in=allowed_schemas)
 
         # --------------------
         # LANGUAGE OPTIONS (ONLY ACCESSIBLE)
@@ -190,14 +225,19 @@ class CallFilterOptionsView(APIView):
         ).values("language", "language_name")
 
         # --------------------
-        # SCHEMA OPTIONS (ONLY ACCESSIBLE)
+        # ORGANIZATION OPTIONS (ONLY ACCESSIBLE)
         # --------------------
-        schemas = (
+        schema_codes = list(
             ch_queryset.exclude(schema_name__isnull=True)
             .exclude(schema_name__exact="")
             .values_list("schema_name", flat=True)
             .distinct()
         )
+
+        schemas = Organization.objects.filter(
+            schema_name__in=schema_codes,
+            is_active=True
+        ).values("schema_name", "org_name")
 
         # --------------------
         # STATUS OPTIONS
@@ -296,9 +336,17 @@ class ConsultantCallDetailAPIView(APIView):
         lang_obj = Language.objects.filter(language=ch_call.language).first()
         language_name = lang_obj.language_name if lang_obj else ch_call.language
 
+        org_obj = Organization.objects.filter(
+            schema_name=ch_call.schema_name,
+            is_active=True
+        ).first()
+        org_name = org_obj.org_name if org_obj else ch_call.schema_name
+
+
         data = {
             "metadata": {
                 "schema_name": ch_call.schema_name,
+                "org_name": org_name,
                 "language": language_name,
                 "uuid": ch_call.uuid,
                 "phone_number": ch_call.phone_number,
@@ -412,10 +460,17 @@ class LeadCallDetailAPIView(APIView):
         # ------------------------
         tags = Tag.objects.all()
 
+        org_obj = Organization.objects.filter(
+            schema_name=ch_call.schema_name,
+            is_active=True
+        ).first()
+        org_name = org_obj.org_name if org_obj else ch_call.schema_name
+
         data = {
             "metadata": {
                 "uuid": ch_call.uuid,
                 "schema_name": ch_call.schema_name,
+                "org_name": org_name,
                 "phone_number": ch_call.phone_number,
                 "duration": ch_call.duration,
                 "language": language_name,

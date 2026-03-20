@@ -120,7 +120,7 @@ const CallReview = () => {
         <div className="review-body">
           <div className="metadata">
             <h3>Call Metadata</h3>
-            <p><b>Schema:</b> {metadata.schema_name || "-"}</p>
+            <p><b>Organization:</b> {metadata.org_name || metadata.schema_name || "-"}</p>
             <p><b>Language:</b> {metadata.language || "-"}</p>
             <p><b>UUID:</b> {metadata.uuid || "-"}</p>
             <p><b>Mobile:</b> {metadata.phone_number || "-"}</p>
