@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import "./Login.css"; // reuse existing login styling
 
@@ -6,13 +7,19 @@ const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const response = await axiosInstance.post("/auth/forgot-password/", { email });
-      setMessage(response.data.message);
+      setMessage("Reset link sent to your email, Redirecting to login...");
       setError("");
+
+      // Redirect to login page after success
+      setTimeout(() => {
+        navigate("/");
+      }, 1500); 
     } catch (err) {
       setError(err.response?.data?.email || "Something went wrong");
       setMessage("");
