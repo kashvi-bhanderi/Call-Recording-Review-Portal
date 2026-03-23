@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import ForgotPasswordView, ResetPasswordView
-from .views import CustomTokenObtainPairView, CookieTokenRefreshView, LogoutView
+from .views import CustomTokenObtainPairView, CookieTokenRefreshView, LogoutView, ChangePasswordView
 from .views import MeView
 
 urlpatterns = [
@@ -10,5 +10,6 @@ urlpatterns = [
     path('auth/refresh/', CookieTokenRefreshView.as_view(), name='refresh'),
     path('auth/me/', MeView.as_view(), name='me'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
+    path('auth/change-password/', ChangePasswordView.as_view(), name='change-password'),
 ]
 

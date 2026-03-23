@@ -3,7 +3,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import ForgotPasswordSerializer, ResetPasswordSerializer
+from .serializers import ForgotPasswordSerializer, ResetPasswordSerializer, ChangePasswordSerializer
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
@@ -43,6 +43,32 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
         return res
 
+class ChangePasswordView(APIView):
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+
+        if not user.check_password(serializer.validated_data["old_password"]):
+            return Response(
+                {"old_password": ["Current password is incorrect"]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.set_password(serializer.validated_data["new_password"])
+        user.save()
+
+        res = Response({"message": "Password updated successfully"}, status=status.HTTP_200_OK)
+
+        # force re-login
+        res.delete_cookie("access_token")
+        res.delete_cookie("refresh_token")
+
+        return res
 
 class CookieTokenRefreshView(APIView):
     def post(self, request):

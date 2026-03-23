@@ -7,7 +7,7 @@ from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 from django.core.mail import send_mail
 from django.conf import settings
-
+from django.contrib.auth.password_validation import validate_password
 User = get_user_model()
 
 
@@ -30,6 +30,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         return data
 
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=6)
+    confirm_password = serializers.CharField(required=True, min_length=6)
+
+    def validate(self, data):
+        if data["new_password"] != data["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match"})
+
+        validate_password(data["new_password"], self.context["request"].user)
+
+        return data
 
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
