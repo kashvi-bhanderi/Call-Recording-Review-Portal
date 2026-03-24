@@ -6,6 +6,7 @@ import "./Dashboard.css";
 import DashboardHeader from "../components/DashboardHeader";
 import MiniAudioPlayer from "../components/MiniAudioPlayer";
 import StarRating from "../components/starrating";
+import toast from "react-hot-toast";
 
 const Dashboard = ({ role }) => {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ const Dashboard = ({ role }) => {
   const [nextPageUrl, setNextPageUrl] = useState(null);
   const [prevPageUrl, setPrevPageUrl] = useState(null);
 
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 8;
 
   const [filterOptions, setFilterOptions] = useState({
     languages: [],
@@ -259,12 +260,12 @@ const Dashboard = ({ role }) => {
         },
       }));
 
-      alert("Review submitted successfully");
+      toast.success("Review submitted successfully");
       fetchCalls(filters, page, sortBy);
     } catch (err) {
       console.error("Inline submit failed:", err);
       const msg = err.response?.data?.error || "Failed to submit review";
-      alert(msg);
+      toast.error(msg);
       fetchCalls(filters, page, sortBy);
     } finally {
       setSubmittingMap((prev) => ({ ...prev, [uuid]: false }));

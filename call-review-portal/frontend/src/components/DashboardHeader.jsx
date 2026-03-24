@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import "../pages/Dashboard.css";
+import toast from "react-hot-toast";
 
 const DashboardHeader = ({ title }) => {
   const navigate = useNavigate();
@@ -10,9 +11,14 @@ const DashboardHeader = ({ title }) => {
     try {
       await axiosInstance.post("/auth/logout/");
       localStorage.removeItem("role");
+      toast.success("Logout successful");
+
+      setTimeout(() => {
+        navigate("/");
+      }, 800);
       navigate("/");
     } catch (error) {
-      console.error("Logout failed:", error);
+      toast.error("Logout failed:", error);
     }
   };
 

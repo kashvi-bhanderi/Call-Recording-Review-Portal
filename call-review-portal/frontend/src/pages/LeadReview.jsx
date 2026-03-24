@@ -6,7 +6,7 @@ import "./LeadReview.css";
 import "./CallReview.css";
 import DashboardHeader from "../components/DashboardHeader";
 import StarRating from "../components/starrating";
-
+import toast from "react-hot-toast";
 const LeadReview = () => {
   const { uuid } = useParams();
 
@@ -73,7 +73,7 @@ const LeadReview = () => {
   const submitReview = async () => {
     try {
       if (!status) {
-        alert("Please select status");
+        toast.error("Please select status");
         return;
       }
 
@@ -93,7 +93,7 @@ const LeadReview = () => {
         tags: tags.map(Number),
       });
 
-      alert(isEditing ? "Lead Review Updated" : "Lead Review Submitted");
+     toast.success(isEditing ? "Lead review updated successfully" : "Lead review submitted successfully");
 
       setIsSubmitted(true);
       setIsEditing(false);
@@ -101,7 +101,7 @@ const LeadReview = () => {
       await fetchCall();
     } catch (err) {
       console.error(err);
-      alert("Failed to submit lead review");
+      toast.error("Failed to submit lead review");
     }
   };
 

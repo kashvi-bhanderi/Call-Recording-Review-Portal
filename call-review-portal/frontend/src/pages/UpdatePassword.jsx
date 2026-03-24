@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import "./Login.css"; // reuse existing styling
-
+import toast from "react-hot-toast";
 const UpdatePassword = () => {
   const navigate = useNavigate();
 
@@ -25,7 +25,7 @@ const UpdatePassword = () => {
         confirm_password: confirmPassword,
       });
 
-      setMessage(res.data.message || "Password updated successfully. Redirecting to login...");
+      toast.success(res.data.message);
 
       localStorage.removeItem("role");
 
@@ -36,17 +36,17 @@ const UpdatePassword = () => {
       const data = err.response?.data;
 
       if (data?.old_password) {
-        setError(data.old_password[0]);
+        toast.error(data.old_password[0]);
       } else if (data?.confirm_password) {
-        setError(data.confirm_password[0]);
+        toast.error(data.confirm_password[0]);
       } else if (data?.new_password) {
-        setError(Array.isArray(data.new_password) ? data.new_password[0] : data.new_password);
+        toast.error(Array.isArray(data.new_password) ? data.new_password[0] : data.new_password);
       } else if (data?.non_field_errors) {
-        setError(Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors);
+        toast.error(Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors);
       } else if (data?.detail) {
-        setError(data.detail);
+        toast.error(data.detail);
       } else {
-        setError("Failed to update password");
+        toast.error("Failed to update password");
       }
     }
   };

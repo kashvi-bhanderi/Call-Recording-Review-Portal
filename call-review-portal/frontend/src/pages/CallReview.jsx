@@ -5,6 +5,7 @@ import AudioPlayer from "../components/AudioPlayer";
 import DashboardHeader from "../components/DashboardHeader";
 import StarRating from "../components/starrating";
 import "./CallReview.css";
+import toast from "react-hot-toast";
 
 const CallReview = () => {
   const { uuid } = useParams();
@@ -64,7 +65,7 @@ const CallReview = () => {
       }
     } catch (err) {
       console.error("Call detail fetch failed:", err);
-      alert("Failed to load call details");
+      toast.error("Failed to load call details");
     }
   };
 
@@ -90,7 +91,7 @@ const CallReview = () => {
         comments,
       });
 
-      alert(isEditing ? "Review Updated" : "Review Submitted");
+      toast.success(isEditing ? "Review Updated" : "Review Submitted");
       setIsSubmitted(true);
       setIsEditing(false);
 
@@ -101,7 +102,7 @@ const CallReview = () => {
     } catch (err) {
       console.error("Submit failed:", err);
       const msg = err.response?.data?.error || "Failed to submit review";
-      alert(msg);
+      toast.error(msg);
       fetchCall();
     }
   };
@@ -213,7 +214,7 @@ const CallReview = () => {
             )}
 
             {!isEditable && (
-              <p style={{ fontSize: "12px", color: "#999", marginTop: "8px" }}>
+              <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "8px" }}>
                 {lockMessage}
               </p>
             )}

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import "./Login.css"; // reuse existing login styling
+import toast from "react-hot-toast";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -13,7 +14,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     try {
       const response = await axiosInstance.post("/auth/forgot-password/", { email });
-      setMessage(response.data.message);
+      toast.success(response.data.message);
       setError("");
 
       // Redirect to login page after success
@@ -21,7 +22,7 @@ const ForgotPassword = () => {
         navigate("/");
       }, 1500); 
     } catch (err) {
-      setError(err.response?.data?.email || "Something went wrong");
+      toast.error(err.response?.data?.email || "Something went wrong");
       setMessage("");
     }
   };

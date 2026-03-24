@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import axiosInstance from '../api/axiosInstance';
-import './Login.css'; 
+import './Login.css';
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import toast from 'react-hot-toast';
+
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [showPassword, setShowPassword] = useState(false); 
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -29,20 +31,20 @@ const Login = () => {
 
       //  STORE ONLY ROLE
       localStorage.setItem('role', userRole);
-
-
-      if (userRole === 'consultant') {
-        window.location.href = '/consultant';
-      } 
-      else if (userRole === 'lead') {
-        window.location.href = '/lead';
-      }
-
+      toast.success("Login successful");
+      setTimeout(() => {
+        if (userRole === 'consultant') {
+          window.location.href = '/consultant';
+        }
+        else if (userRole === 'lead') {
+          window.location.href = '/lead';
+        }
+      }, 1000);
     } catch (err) {
       setError('Invalid credentials');
     }
-};
-   return (
+  };
+  return (
 
     <div className="login-container">
 
@@ -107,8 +109,8 @@ const Login = () => {
 
 
 
-        <p className="forgot-password" onClick={() => window.location.href="/forgot-password"}>
-        Forgot Password?
+        <p className="forgot-password" onClick={() => window.location.href = "/forgot-password"}>
+          Forgot Password?
         </p>
 
       </form>

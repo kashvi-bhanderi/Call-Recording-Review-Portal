@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import "./Login.css"; // reuse styling
+import toast from "react-hot-toast";
 
 const ResetPassword = () => {
   const { uid, token } = useParams();
@@ -18,10 +19,10 @@ const ResetPassword = () => {
         new_password: newPassword,
         confirm_password: confirmPassword,
       });
-      setMessage("Password reset successful. Redirecting to login...");
+      toast.success("Password reset successful. Redirecting to login...");
       setTimeout(() => navigate("/"), 2000);
     } catch (err) {
-      setError(err.response?.data?.non_field_errors || "Invalid or expired link");
+      toast.error(err.response?.data?.non_field_errors || "Invalid or expired link");
     }
   };
 
