@@ -13,7 +13,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     try {
       const response = await axiosInstance.post("/auth/forgot-password/", { email });
-      setMessage("Reset link sent to your email, Redirecting to login...");
+      setMessage(response.data.message);
       setError("");
 
       // Redirect to login page after success

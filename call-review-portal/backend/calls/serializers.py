@@ -129,6 +129,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
         call = calls_map.get(obj.uuid)
 
         metrics = EvaluationMetric.objects.all()
+        # metrics = EvaluationMetric.objects.filter(is_active=True)
 
         result = []
 
@@ -185,10 +186,17 @@ class EvaluationCallRatingSerializer(serializers.Serializer):
     comments = serializers.CharField(required=False, allow_blank=True)
 
     def validate_call_uuid(self, value):
+    # Call must exist in ClickHouse
         try:
-            call = Call.objects.get(uuid=value)
-        except Call.DoesNotExist:
+            ch_call = CallCH.objects.using("clickhouse").get(uuid=value)
+        except CallCH.DoesNotExist:
             raise serializers.ValidationError("Call not found")
+
+        Call.objects.get_or_create(
+            uuid=value,
+            defaults={"attempt_on_time_stamp": ch_call.attempt_on_time_stamp}
+        )
+
         return value
 
     def validate(self, data):

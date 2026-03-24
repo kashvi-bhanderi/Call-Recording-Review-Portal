@@ -93,18 +93,31 @@ class DashboardCallView(ListAPIView):
                 queryset = queryset.filter(schema_name__in=allowed_schemas)
             else:
                 return queryset.none()
-        # ------------------------
-        # POSTGRES FILTERING
-        # ------------------------
+
         status_filter = self.request.GET.get("status")
         rated_by = self.request.GET.get("rated_by")
         tags = self.request.GET.get("tags")
 
         if status_filter:
-            uuids = Call.objects.filter(
-                status__in=status_filter.split(",")
-            ).values_list("uuid", flat=True)
-            queryset = queryset.filter(uuid__in=list(uuids))
+            status_values = [int(s) for s in status_filter.split(",") if s.strip().isdigit()]
+
+            if not status_values:
+                return queryset.none()
+
+            matched_uuids = set(
+                Call.objects.filter(status__in=status_values).values_list("uuid", flat=True)
+            )
+
+            # Special handling for Not Rated (1)
+            # Include CH calls with no PG row
+            if 1 in status_values:
+                visible_ch_uuids = set(queryset.values_list("uuid", flat=True))
+                existing_pg_uuids = set(
+                    Call.objects.filter(uuid__in=visible_ch_uuids).values_list("uuid", flat=True)
+                )
+                matched_uuids.update(visible_ch_uuids - existing_pg_uuids)
+
+            queryset = queryset.filter(uuid__in=list(matched_uuids))
 
         if rated_by:
             uuids = Call.objects.filter(

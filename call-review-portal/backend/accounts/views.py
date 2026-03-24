@@ -102,7 +102,7 @@ class ForgotPasswordView(APIView):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({"message": "Password reset link sent to your email."}, status=status.HTTP_200_OK)
+        return Response({"message": "Reset link sent to your email, Redirecting to login..."}, status=status.HTTP_200_OK)
 
 class ResetPasswordView(APIView):
     def post(self, request, uidb64, token):
