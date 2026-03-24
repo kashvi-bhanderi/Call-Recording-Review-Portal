@@ -79,8 +79,8 @@ class Migration(migrations.Migration):
                     models.SmallIntegerField(
                         choices=[
                             (1, "Not Rated"),
-                            (2, "Completed"),
-                            (3, "Need Fix"),
+                            (2, "Rated"),
+                            (3, "Production Issue"),
                             (4, "Approved"),
                         ],
                         db_index=True,

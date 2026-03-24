@@ -193,8 +193,8 @@ class CallFilterOptionsView(APIView):
                     "schemas": [],
                     "statuses": [
                         {"value": 1, "label": "Not Rated"},
-                        {"value": 2, "label": "Completed"},
-                        {"value": 3, "label": "Need Fix"},
+                        {"value": 2, "label": "Rated"},
+                        {"value": 3, "label": "Production Issue"},
                         {"value": 4, "label": "Approved"},
                     ],
                     "rated_by": [],
@@ -216,8 +216,8 @@ class CallFilterOptionsView(APIView):
                     "schemas": [],
                     "statuses": [
                         {"value": 1, "label": "Not Rated"},
-                        {"value": 2, "label": "Completed"},
-                        {"value": 3, "label": "Need Fix"},
+                        {"value": 2, "label": "Rated"},
+                        {"value": 3, "label": "Production Issue"},
                         {"value": 4, "label": "Approved"},
                     ],
                     "rated_by": [],
@@ -257,8 +257,8 @@ class CallFilterOptionsView(APIView):
         # --------------------
         statuses = [
             {"value": 1, "label": "Not Rated"},
-            {"value": 2, "label": "Completed"},
-            {"value": 3, "label": "Need Fix"},
+            {"value": 2, "label": "Rated"},
+            {"value": 3, "label": "Production Issue"},
             {"value": 4, "label": "Approved"},
         ]
 
@@ -535,7 +535,7 @@ class LeadSubmitReviewAPIView(APIView):
 
         if new_status not in [3, 4]:
             return Response(
-                {"error": "Status must be 3 (Need Fix) or 4 (Approved)"},
+                {"error": "Status must be 3 (Production Issue) or 4 (Approved)"},
                 status=400
             )
 

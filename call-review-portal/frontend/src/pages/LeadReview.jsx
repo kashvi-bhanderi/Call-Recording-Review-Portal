@@ -46,7 +46,7 @@ const LeadReview = () => {
       setTagOptions(detailRes.data.tag_options || []);
       setTags(detailRes.data.selected_tags || []);
 
-      const statusFinalized = ["Need Fix", "Approved"].includes(
+      const statusFinalized = ["Production Issue", "Approved"].includes(
         detailRes.data.metadata?.status
       );
 
@@ -206,7 +206,7 @@ const LeadReview = () => {
               }}
             >
               <option value="">Select Status</option>
-              <option value={3}>Need Fix</option>
+              <option value={3}>Production Issue</option>
               <option value={4}>Approved</option>
             </select>
 

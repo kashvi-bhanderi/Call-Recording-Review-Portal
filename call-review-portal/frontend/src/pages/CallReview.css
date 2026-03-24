@@ -190,12 +190,12 @@ background: #fef3c7;
 color: #92400e;
 }
 
-.status-completed {
+.status-rated {
 background: #d1fae5;
 color: #065f46;
 }
 
-.status-needfix {
+.status-productionissue {
 background: #fee2e2;
 color: #991b1b;
 }
