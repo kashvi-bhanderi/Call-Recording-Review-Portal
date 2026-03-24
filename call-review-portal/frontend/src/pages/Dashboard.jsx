@@ -307,7 +307,7 @@ const Dashboard = ({ role }) => {
     { key: "template_id", label: "Template ID" },
     { key: "language_name", label: "Language" },
     { key: "organization_name", label: "Organization" },
-    { key: "phone_number", label: "Provider Mobile" },
+    { key: "phone_number", label: "Mobile No" },
     { key: "uuid", label: "Call UUID" },
     { key: "attempt_on_time_stamp", label: "Call Date & Time" },
     { key: "duration_display", label: "Duration" },
@@ -356,7 +356,7 @@ const Dashboard = ({ role }) => {
                   <input
                     type="text"
                     name="phone_number"
-                    placeholder="Provider Mobile"
+                    placeholder="Mobile No"
                     value={filters.phone_number}
                     onChange={handleChange}
                   />

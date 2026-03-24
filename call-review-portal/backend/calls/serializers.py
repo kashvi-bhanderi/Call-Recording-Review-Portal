@@ -128,8 +128,8 @@ class DashboardCallSerializer(serializers.ModelSerializer):
         calls_map = self.context.get("calls_map", {})
         call = calls_map.get(obj.uuid)
 
-        metrics = EvaluationMetric.objects.all()
-        # metrics = EvaluationMetric.objects.filter(is_active=True)
+        # metrics = EvaluationMetric.objects.all()
+        metrics = EvaluationMetric.objects.filter(is_active=True)
 
         result = []
 
