@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+  # PostgreSQL
   db:
     image: postgres:16
     container_name: postgres
@@ -16,8 +17,11 @@ services:
     networks:
       - app-network
 
+  # pgAdmin
   pgadmin:
     image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com
       PGADMIN_DEFAULT_PASSWORD: password
@@ -28,40 +32,64 @@ services:
     networks:
       - app-network
 
-  # backend:
-  #   build: ./backend
-  #   container_name: django-dev
-  #   volumes:
-  #     - ./backend:/app
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     - db
-  #   environment:
-  #     - DATABASE_NAME=db
-  #     - DATABASE_USER=user
-  #     - DATABASE_PASSWORD=password
-  #     - DATABASE_HOST=db
-  #     - DATABASE_PORT=5432
-  #   networks:
-  #     - app-network
+  # ClickHouse
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
+    ports:
+      - "9000:9000"   # TCP client port
+      - "8123:8123"   # HTTP port
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: "password"   # or set your password
+      CLICKHOUSE_DB: default
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+    - app-network
+  # Django Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: django-dev
+    restart: always
+    command: ["./wait-for-db.sh", "db:5432", "--", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    depends_on:
+      - db
+      - clickhouse
+    networks:
+      - app-network
 
-  # frontend:
-  #   build: ./frontend
-  #   container_name: react-dev
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #   ports:
-  #     - "5173:5173"
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - app-network
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: react-dev
+    restart: always
+    command: npm run dev -- --host 0.0.0.0
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
   pgadmin_data:
+  clickhouse_data:
 
 networks:
   app-network:

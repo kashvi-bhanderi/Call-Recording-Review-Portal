@@ -125,14 +125,16 @@ DATABASES = {
         'NAME': 'db',
         'USER': 'user',
         'PASSWORD': 'password',
-        'HOST': '127.0.0.1',
+        'HOST': 'db',
         'PORT': '5432',
     },
-    "clickhouse": {
-        "ENGINE": "clickhouse_backend.backend",
-        "NAME": "default",
-        "HOST": "localhost",
-        "PORT": "9000",
+    'clickhouse': {
+        'ENGINE': 'clickhouse_backend.backend',  # points to the installed django-clickhouse-backend
+        'NAME': 'default',
+        'USER': 'default',
+        'PASSWORD': 'password',
+        'HOST': 'clickhouse',
+        'PORT': 9000,
     }
 }
 DATABASE_ROUTERS = ["config.db_router.ClickHouseRouter"]
