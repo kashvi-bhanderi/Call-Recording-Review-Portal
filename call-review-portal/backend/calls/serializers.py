@@ -4,6 +4,8 @@ from accounts.models import Language, User, Organization
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Call, EvaluationCallRating, EvaluationMetric
+from django.db import transaction
+from rest_framework.exceptions import ValidationError
 
 class DashboardCallSerializer(serializers.ModelSerializer):
     language_name = serializers.SerializerMethodField()
@@ -128,19 +130,26 @@ class DashboardCallSerializer(serializers.ModelSerializer):
         calls_map = self.context.get("calls_map", {})
         call = calls_map.get(obj.uuid)
 
-        # metrics = EvaluationMetric.objects.all()
         metrics = EvaluationMetric.objects.filter(is_active=True)
-
         result = []
 
         for metric in metrics:
             value = None
 
             if call:
-                rating = EvaluationCallRating.objects.filter(
+                rating_qs = EvaluationCallRating.objects.filter(
                     call=call,
                     parameter=metric
-                ).first()
+                )
+
+                # If lead reviewed, dashboard should show lead rating
+                if call.reviewed_by_id:
+                    rating = rating_qs.filter(rated_by_id=call.reviewed_by_id).first()
+                # Else show consultant rating
+                elif call.rated_by_id:
+                    rating = rating_qs.filter(rated_by_id=call.rated_by_id).first()
+                else:
+                    rating = None
 
                 if rating:
                     value = rating.rating
@@ -153,18 +162,27 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             })
 
         return result
+
     def get_is_locked(self, obj):
         calls_map = self.context.get("calls_map", {})
+        request = self.context.get("request")
         call = calls_map.get(obj.uuid)
 
         if not call:
             return False
 
-        return call.rating_locked or call.status in [3, 4]
+        if call.rating_locked or call.status in [3, 4]:
+            return True
+
+        if request and call.rated_by_id and call.rated_by_id != request.user.id:
+            return True
+
+        return False
 
 
     def get_lock_message(self, obj):
         calls_map = self.context.get("calls_map", {})
+        request = self.context.get("request")
         call = calls_map.get(obj.uuid)
 
         if not call:
@@ -175,6 +193,9 @@ class DashboardCallSerializer(serializers.ModelSerializer):
         
         if call.rating_locked:
             return "Lead is reviewing this call. Editing temporarily disabled"
+
+        if request and call.rated_by_id and call.rated_by_id != request.user.id:
+            return "Another consultant already rated this call."
 
         return ""
     
@@ -213,26 +234,42 @@ class EvaluationCallRatingSerializer(serializers.Serializer):
 
     def create_or_update_ratings(self, user):
         """
-        Create or update EvaluationCallRating entries for this call.
+        Only the FIRST consultant can rate this call.
+        If another consultant already rated, block it.
+        Race-condition safe.
         """
-        call = Call.objects.get(uuid=self.validated_data['call_uuid'])
-        ratings_data = self.validated_data['ratings']
-        comments = self.validated_data.get('comments', '')
+        with transaction.atomic():
+            call = Call.objects.select_for_update().get(uuid=self.validated_data['call_uuid'])
 
-        for param_name, rating in ratings_data.items():
-            metric = EvaluationMetric.objects.get(name=param_name)
-            obj, created = EvaluationCallRating.objects.update_or_create(
-                call=call,
-                parameter=metric,
-                rated_by=user,
-                defaults={'rating': rating}
-            )
+            # If lead is reviewing / reviewed, consultant cannot rate
+            if call.rating_locked or call.status in [3, 4]:
+                raise ValidationError("Lead is reviewing this call")
 
-        # Update the call fields: status and consultant comment
-        if call.status == 1:  # Not Rated
-            call.status = 2  # Completed
-        call.consultant_comment = comments
-        call.rated_by = user
-        call.rated_at = timezone.now()
-        call.save()
-        return call
+            # If already rated by another consultant -> block
+            if call.rated_by_id and call.rated_by_id != user.id:
+                raise ValidationError("Another consultant already rated this call")
+
+            ratings_data = self.validated_data['ratings']
+            comments = self.validated_data.get('comments', '')
+
+            # Save/update ONLY this consultant's ratings
+            for param_name, rating in ratings_data.items():
+                metric = EvaluationMetric.objects.get(name=param_name)
+
+                EvaluationCallRating.objects.update_or_create(
+                    call=call,
+                    parameter=metric,
+                    rated_by=user,
+                    defaults={'rating': rating}
+                )
+
+            # Mark this consultant as the owner of the review
+            if call.status == 1:
+                call.status = 2
+
+            call.consultant_comment = comments
+            call.rated_by = user
+            call.rated_at = timezone.now()
+            call.save()
+
+            return call
