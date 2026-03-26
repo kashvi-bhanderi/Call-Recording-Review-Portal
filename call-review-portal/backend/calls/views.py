@@ -458,13 +458,14 @@ class LeadCallDetailAPIView(APIView):
         check_lock_expiry(call)
         locked_by_other_lead = False
 
+        # If another lead owns/finalized this call
         if call.reviewed_by_id and call.reviewed_by_id != request.user.id:
             locked_by_other_lead = True
-        elif call.status in [3, 4]:
+
+        # If temporarily locked by another lead
+        elif call.rating_locked and call.reviewed_by_id and call.reviewed_by_id != request.user.id:
             locked_by_other_lead = True
-        else:
-            if call.rating_locked and call.reviewed_by_id and call.reviewed_by_id != request.user.id:
-                locked_by_other_lead = True
+
         # ------------------------
         # ACQUIRE LOCK FOR LEAD
         # ------------------------
@@ -494,15 +495,22 @@ class LeadCallDetailAPIView(APIView):
         for r in consultant_ratings:
             consultant_list.append({
                 "metric": r.parameter.name,
-                "value": r.rating
+                "value": r.rating,
+                "min": r.parameter.min_value,
+                "max": r.parameter.max_value,
             })
+
 
         # ------------------------
         # LEAD RATINGS
         # ------------------------
+        # If already reviewed, show ratings of the lead who reviewed it
+        # Otherwise show current user's in-progress ratings (if any)
+        rating_user = call.reviewed_by if call.reviewed_by else request.user
+
         lead_ratings = EvaluationCallRating.objects.filter(
             call=call,
-            rated_by=request.user
+            rated_by=rating_user
         )
 
         lead_map = {r.parameter.name: r.rating for r in lead_ratings}
@@ -534,10 +542,10 @@ class LeadCallDetailAPIView(APIView):
                 "language": language_name,
                 "attempt_on_time_stamp": ch_call.attempt_on_time_stamp,
                 "status": call.get_status_display(),
-                "is_locked": locked_by_other_lead or (call.rating_locked and call.reviewed_by_id != request.user.id),
+                "is_locked": locked_by_other_lead,
                 "lock_message": (
                     "Another lead already reviewed this call"
-                    if call.status in [3, 4] and call.reviewed_by_id and call.reviewed_by_id != request.user.id
+                    if call.reviewed_by_id and call.reviewed_by_id != request.user.id and call.status in [3, 4]
                     else "Another lead is currently reviewing this call"
                     if call.rating_locked and call.reviewed_by_id and call.reviewed_by_id != request.user.id
                     else ""
@@ -600,28 +608,21 @@ class LeadSubmitReviewAPIView(APIView):
 
                 check_lock_expiry(call)
 
-                # If already reviewed by another lead -> block
+                # Another lead already owns this review -> block
                 if call.reviewed_by_id and call.reviewed_by_id != request.user.id:
                     return Response(
                         {"error": "Another lead already reviewed this call"},
                         status=403
                     )
 
-                # If already finalized by anyone else, block
-                if call.status in [3, 4] and call.reviewed_by_id and call.reviewed_by_id != request.user.id:
+                # If call is locked by another lead temporarily -> block
+                if call.rating_locked and call.reviewed_by_id and call.reviewed_by_id != request.user.id:
                     return Response(
-                        {"error": "Another lead already reviewed this call"},
+                        {"error": "Another lead is currently reviewing this call"},
                         status=403
                     )
 
-                # Optional strict rule: if already finalized even by same lead, block resubmit
-                if call.status in [3, 4]:
-                    return Response(
-                        {"error": "This call has already been reviewed"},
-                        status=403
-                    )
-
-                # Save ratings
+                # Save/update ratings for THIS lead only
                 for metric_name, rating in ratings.items():
                     if rating in [None, ""]:
                         continue
@@ -635,7 +636,7 @@ class LeadSubmitReviewAPIView(APIView):
                         defaults={"rating": rating}
                     )
 
-                # Finalize review
+                # Save/update lead review (same lead can edit)
                 call.status = new_status
                 call.lead_comment = comment
                 call.reviewed_by = request.user
@@ -643,13 +644,13 @@ class LeadSubmitReviewAPIView(APIView):
                 call.tags.set(tags)
                 call.save()
 
+                # release temporary lock after save
                 release_lock(call)
 
-                return Response({"message": "Lead review submitted"})
+                return Response({"message": "Lead review submitted successfully"})
 
         except Call.DoesNotExist:
             return Response({"error": "Call not found"}, status=404)
-
 # ------------------------
 # AUDIO API
 # ------------------------

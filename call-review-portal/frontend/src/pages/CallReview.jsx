@@ -30,25 +30,31 @@ const CallReview = () => {
   const fetchCall = async () => {
     try {
       const detailRes = await axiosInstance.get(`/calls/detail/${uuid}/`);
+      const data = detailRes.data;
 
-      setMetadata(detailRes.data.metadata || {});
-      setMetrics(detailRes.data.metrics || []);
-      setComments(detailRes.data.comments || "");
-      setLeadMetrics(detailRes.data.lead_metrics || []);
-      setLeadComment(detailRes.data.lead_comment || "");
+      setMetadata(data.metadata || {});
+      setMetrics(data.metrics || []);
+      setComments(data.comments || "");
+      setLeadMetrics(data.lead_metrics || []);
+      setLeadComment(data.lead_comment || "");
 
-      const rated = (detailRes.data.metrics || []).some(
+      const rated = (data.metrics || []).some(
         (m) => m.value !== null && m.value !== ""
       );
 
-      if (detailRes.data.is_locked) {
+      if (data.is_locked) {
         setIsEditable(false);
-        setIsSubmitted(true);
+        setIsEditing(false);
+        setIsSubmitted(rated);
 
-        if (detailRes.data.lock_reason === "permanent") {
+        if (data.lock_reason === "permanent") {
           setLockMessage("Lead reviewed this call. You cannot update it.");
+        } else if (data.lock_reason === "temporary") {
+          setLockMessage("Lead is reviewing this call. Editing temporarily disabled.");
+        } else if (data.lock_reason === "consultant_taken") {
+          setLockMessage("Another consultant already rated this call.");
         } else {
-          setLockMessage("Lead is reviewing this call. Editing temporarily disabled");
+          setLockMessage("This call is locked.");
         }
       } else {
         setIsEditable(true);
@@ -91,14 +97,12 @@ const CallReview = () => {
         comments,
       });
 
-      toast.success(isEditing ? "Review Updated" : "Review Submitted");
+      toast.success(isEditing ? "Review updated successfully" : "Review submitted successfully");
+
       setIsSubmitted(true);
       setIsEditing(false);
 
-      setMetadata((prev) => ({
-        ...prev,
-        status: "Rated",
-      }));
+      await fetchCall();
     } catch (err) {
       console.error("Submit failed:", err);
       const msg = err.response?.data?.error || "Failed to submit review";
@@ -106,6 +110,8 @@ const CallReview = () => {
       fetchCall();
     }
   };
+
+  const disableInputs = !isEditable || (isSubmitted && !isEditing);
 
   return (
     <div className="review-page">
@@ -142,6 +148,9 @@ const CallReview = () => {
                 {metadata.status || "-"}
               </span>
             </p>
+            {metadata.rated_by && (
+              <p><b>Rated By:</b> {metadata.rated_by}</p>
+            )}
           </div>
 
           <div className="rating-panel">
@@ -151,7 +160,6 @@ const CallReview = () => {
               <p style={{ color: "#666" }}>No metrics available</p>
             ) : (
               metrics.map((m) => {
-                const disabled = !isEditable || (isSubmitted && !isEditing);
                 const useStars = Number(m.max) <= 5;
 
                 return (
@@ -163,7 +171,7 @@ const CallReview = () => {
                         value={m.value ?? 0}
                         min={Number(m.min) || 1}
                         max={Number(m.max) || 5}
-                        disabled={disabled}
+                        disabled={disableInputs}
                         onChange={(val) => handleRatingChange(m.name, val)}
                       />
                     ) : (
@@ -172,7 +180,7 @@ const CallReview = () => {
                         min={m.min}
                         max={m.max}
                         value={m.value ?? ""}
-                        disabled={disabled}
+                        disabled={disableInputs}
                         onChange={(e) => handleRatingChange(m.name, e.target.value)}
                       />
                     )}
@@ -191,7 +199,7 @@ const CallReview = () => {
             <textarea
               placeholder="Comments"
               value={comments}
-              disabled={!isEditable || (isSubmitted && !isEditing)}
+              disabled={disableInputs}
               onChange={(e) => setComments(e.target.value)}
             />
 

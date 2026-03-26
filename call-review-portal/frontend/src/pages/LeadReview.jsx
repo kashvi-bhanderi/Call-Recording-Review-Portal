@@ -7,6 +7,7 @@ import "./CallReview.css";
 import DashboardHeader from "../components/DashboardHeader";
 import StarRating from "../components/starrating";
 import toast from "react-hot-toast";
+
 const LeadReview = () => {
   const { uuid } = useParams();
 
@@ -18,49 +19,40 @@ const LeadReview = () => {
   const [leadComment, setLeadComment] = useState("");
   const [status, setStatus] = useState("");
   const [tags, setTags] = useState([]);
-
   const [tagOptions, setTagOptions] = useState([]);
 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-
   useEffect(() => {
     fetchCall();
   }, [uuid]);
 
   const fetchCall = async () => {
     try {
-      const [detailRes, audioRes] = await Promise.all([
-        axiosInstance.get(`/calls/lead-detail/${uuid}/`),
-        axiosInstance.get(`/calls/audio/${uuid}/`),
-      ]);
+      const detailRes = await axiosInstance.get(`/calls/lead-detail/${uuid}/`);
+      const data = detailRes.data;
 
-      setMetadata(detailRes.data.metadata || {});
-      setConsultant(detailRes.data.consultant_review || {});
-      setMetrics(detailRes.data.metrics || []);
-      setAudioUrl(audioRes.data.audio_url || "");
+      setMetadata(data.metadata || {});
+      setConsultant(data.consultant_review || {});
+      setMetrics(data.metrics || []);
+      setLeadComment(data.lead_comment || "");
+      setStatus(data.status ?? "");
+      setTagOptions(data.tag_options || []);
+      setTags(data.selected_tags || []);
+      const alreadyReviewed = [3, 4].includes(data.status) && !!data.metadata?.reviewed_by;
+      setIsSubmitted(alreadyReviewed);
+      setIsEditing(false);
 
-      setLeadComment(detailRes.data.lead_comment || "");
-      setStatus(detailRes.data.status ?? "");
-
-      setTagOptions(detailRes.data.tag_options || []);
-      setTags(detailRes.data.selected_tags || []);
-
-      const statusFinalized = ["Production Issue", "Approved"].includes(
-        detailRes.data.metadata?.status
-      );
-
-      if (statusFinalized) {
-        setIsSubmitted(true);
-        setIsEditing(false);
-      } else {
-        const rated = (detailRes.data.metrics || []).some(
-          (m) => m.value !== null && m.value !== ""
-        );
-        setIsSubmitted(rated);
+      try {
+        const audioRes = await axiosInstance.get(`/calls/audio/${uuid}/`);
+        setAudioUrl(audioRes.data.audio_url || "");
+      } catch (audioErr) {
+        console.warn("Audio fetch failed:", audioErr);
+        setAudioUrl("");
       }
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load lead review:", err);
+      toast.error("Failed to load call details");
     }
   };
 
@@ -93,17 +85,20 @@ const LeadReview = () => {
         tags: tags.map(Number),
       });
 
-     toast.success(isEditing ? "Lead review updated successfully" : "Lead review submitted successfully");
-
+      toast.success(isEditing ? "Lead review updated successfully" : "Lead review submitted successfully");
       setIsSubmitted(true);
       setIsEditing(false);
-
       await fetchCall();
+
     } catch (err) {
       console.error(err);
-      toast.error("Failed to submit lead review");
+      const msg = err.response?.data?.error || "Failed to submit lead review";
+      toast.error(msg);
+      fetchCall();
     }
   };
+  const isLocked = metadata.is_locked;
+  const disableInputs = isLocked || (isSubmitted && !isEditing);
 
   return (
     <div className="review-page">
@@ -144,6 +139,16 @@ const LeadReview = () => {
                 {metadata.status || "-"}
               </span>
             </p>
+
+            {metadata.reviewed_by && (
+              <p><b>Reviewed By:</b> {metadata.reviewed_by}</p>
+            )}
+
+            {metadata.is_locked && metadata.lock_message && (
+              <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "8px" }}>
+                {metadata.lock_message}
+              </p>
+            )}
           </div>
 
           {/* Lead Rating Panel */}
@@ -153,11 +158,11 @@ const LeadReview = () => {
             {metrics.length === 0 ? (
               <p style={{ color: "#666" }}>No metrics available</p>
             ) : (
-              metrics.map((m, i) => {
+              metrics.map((m) => {
                 const useStars = Number(m.max) <= 5;
 
                 return (
-                  <div key={i} className="metric">
+                  <div key={m.name} className="metric">
                     <label>{m.name}</label>
 
                     {useStars ? (
@@ -165,7 +170,7 @@ const LeadReview = () => {
                         value={m.value ?? 0}
                         min={Number(m.min) || 1}
                         max={Number(m.max) || 5}
-                        disabled={isSubmitted && !isEditing}
+                        disabled={disableInputs}
                         onChange={(val) => handleRatingChange(m.name, val)}
                       />
                     ) : (
@@ -174,7 +179,7 @@ const LeadReview = () => {
                         min={m.min}
                         max={m.max}
                         value={m.value ?? ""}
-                        disabled={isSubmitted && !isEditing}
+                        disabled={disableInputs}
                         onChange={(e) => handleRatingChange(m.name, e.target.value)}
                       />
                     )}
@@ -193,13 +198,13 @@ const LeadReview = () => {
             <textarea
               placeholder="Lead Comment"
               value={leadComment}
-              disabled={isSubmitted && !isEditing}
+              disabled={disableInputs}
               onChange={(e) => setLeadComment(e.target.value)}
             />
 
             <select
               value={status === null || status === undefined ? "" : status}
-              disabled={isSubmitted && !isEditing}
+              disabled={disableInputs}
               onChange={(e) => {
                 const val = e.target.value;
                 setStatus(val === "" ? "" : Number(val));
@@ -213,7 +218,7 @@ const LeadReview = () => {
             <select
               multiple
               value={tags}
-              disabled={isSubmitted && !isEditing}
+              disabled={disableInputs}
               onChange={(e) =>
                 setTags([...e.target.selectedOptions].map((o) => Number(o.value)))
               }
@@ -225,19 +230,19 @@ const LeadReview = () => {
               ))}
             </select>
 
-            {!isSubmitted && (
+            {!isSubmitted && !isLocked && (
               <button className="submit-btn" onClick={submitReview}>
                 Submit
               </button>
             )}
 
-            {isSubmitted && !isEditing && (
+            {isSubmitted && !isLocked && !isEditing && (
               <button className="edit-btn" onClick={() => setIsEditing(true)}>
                 Edit
               </button>
             )}
 
-            {isEditing && (
+            {isSubmitted && !isLocked && isEditing && (
               <button className="submit-btn" onClick={submitReview}>
                 Update
               </button>
@@ -249,27 +254,19 @@ const LeadReview = () => {
             <h3>Consultant Review</h3>
 
             {consultant.ratings?.length > 0 ? (
-              consultant.ratings.map((r, i) => {
-                const useStars = Number(r.max || 5) <= 5;
+              consultant.ratings.map((r, i) => (
+                <div key={i} className="metric">
+                  <label>{r.metric}</label>
 
-                return (
-                  <div key={i} className="metric">
-                    <label>{r.metric}</label>
-
-                    {useStars ? (
-                      <StarRating
-                        value={r.value ?? 0}
-                        min={Number(r.min) || 1}
-                        max={Number(r.max) || 5}
-                        disabled={true}
-                        readOnly={true}
-                      />
-                    ) : (
-                      <input value={r.value ?? ""} readOnly />
-                    )}
-                  </div>
-                );
-              })
+                  <StarRating
+                    value={r.value ?? 0}
+                    min={1}
+                    max={5}
+                    disabled={true}
+                    readOnly={true}
+                  />
+                </div>
+              ))
             ) : (
               <p style={{ color: "#666" }}>No consultant review available</p>
             )}
