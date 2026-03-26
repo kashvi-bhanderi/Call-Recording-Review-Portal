@@ -325,6 +325,7 @@ const Dashboard = ({ role }) => {
     { key: "attempt_on_time_stamp", label: "Call Date & Time" },
     { key: "duration_display", label: "Duration" },
     { key: "status_display", label: "Review Status" },
+    { key: "overall_rating", label: "Overall Rating" },
     { key: "audio", label: "Audio" },
     { key: "inline_rating", label: "Rating" },
   ];

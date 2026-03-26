@@ -97,7 +97,7 @@ const CallReview = () => {
 
       setMetadata((prev) => ({
         ...prev,
-        status: "Completed",
+        status: "Rated",
       }));
     } catch (err) {
       console.error("Submit failed:", err);
