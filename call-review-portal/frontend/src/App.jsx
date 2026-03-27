@@ -10,6 +10,8 @@ import ResetPassword from "./pages/ResetPassword";
 import CallReview from "./pages/CallReview";
 import LeadReview from "./pages/LeadReview";
 import UpdatePassword from "./pages/UpdatePassword";
+import SelectOrganization from "./pages/SelectOrganization";
+import SelectTemplate from "./pages/SelectTemplate";
 
 const App = () => {
   return (
@@ -53,6 +55,23 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Login />} />
 
+          {/* Consultant flow */}
+          <Route
+            path="/consultant/select-organization"
+            element={
+              <ProtectedRoute role="consultant">
+                <SelectOrganization role="consultant" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/consultant/select-template"
+            element={
+              <ProtectedRoute role="consultant">
+                <SelectTemplate role="consultant" />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/consultant"
             element={
@@ -62,6 +81,23 @@ const App = () => {
             }
           />
 
+          {/* Lead flow */}
+          <Route
+            path="/lead/select-organization"
+            element={
+              <ProtectedRoute role="lead">
+                <SelectOrganization role="lead" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/lead/select-template"
+            element={
+              <ProtectedRoute role="lead">
+                <SelectTemplate role="lead" />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/lead"
             element={

@@ -702,3 +702,123 @@ class CallAudioAPIView(APIView):
             "audio_key": audio_key,   # useful for testing, remove later in production
             "expires_in": 300
         })
+
+# ------------------------
+# SELECTABLE ORGANIZATIONS
+# ------------------------
+class SelectableOrganizationsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CookieJWTAuthentication]
+
+    def get(self, request):
+        user = request.user
+
+        ch_queryset = CallCH.objects.using("clickhouse").all()
+
+        # Superuser: show all active orgs that have calls
+        if user.is_superuser:
+            schema_names = list(
+                ch_queryset.exclude(schema_name__isnull=True)
+                .exclude(schema_name__exact="")
+                .values_list("schema_name", flat=True)
+                .distinct()
+            )
+
+            organizations = Organization.objects.filter(
+                schema_name__in=schema_names,
+                is_active=True
+            ).values("schema_name", "org_name")
+
+            return Response({
+                "organizations": list(organizations)
+            })
+
+        # Accessible languages
+        allowed_languages = list(
+            user.accessible_languages.values_list("language", flat=True)
+        )
+        if not allowed_languages:
+            return Response({"organizations": []})
+
+        # Accessible orgs
+        allowed_schemas = list(
+            user.accessible_organizations.values_list("schema_name", flat=True)
+        )
+        if not allowed_schemas:
+            return Response({"organizations": []})
+
+        # Only orgs with visible calls
+        visible_schema_names = list(
+            ch_queryset.filter(
+                schema_name__in=allowed_schemas,
+                language__in=allowed_languages
+            )
+            .exclude(schema_name__isnull=True)
+            .exclude(schema_name__exact="")
+            .values_list("schema_name", flat=True)
+            .distinct()
+        )
+
+        organizations = Organization.objects.filter(
+            schema_name__in=visible_schema_names,
+            is_active=True
+        ).values("schema_name", "org_name")
+
+        return Response({
+            "organizations": list(organizations)
+        })
+
+# ------------------------
+# SELECTABLE TEMPLATES
+# ------------------------
+class SelectableTemplatesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CookieJWTAuthentication]
+
+    def get(self, request):
+        user = request.user
+        schema_name = request.GET.get("schema_name")
+
+        if not schema_name:
+            return Response({"error": "schema_name is required"}, status=400)
+
+        ch_queryset = CallCH.objects.using("clickhouse").all()
+
+        # Superuser can see all templates in that org
+        if user.is_superuser:
+            template_ids = list(
+                ch_queryset.filter(schema_name=schema_name)
+                .values_list("template_id", flat=True)
+                .distinct()
+            )
+
+            return Response({
+                "templates": [{"template_id": t} for t in sorted(template_ids)]
+            })
+
+        # Check org access
+        has_org_access = user.accessible_organizations.filter(schema_name=schema_name).exists()
+        if not has_org_access:
+            return Response({"templates": []})
+
+        # Check language access
+        allowed_languages = list(
+            user.accessible_languages.values_list("language", flat=True)
+        )
+        if not allowed_languages:
+            return Response({"templates": []})
+
+        # Only templates from selected org + accessible languages
+        template_ids = list(
+            ch_queryset.filter(
+                schema_name=schema_name,
+                language__in=allowed_languages
+            )
+            .values_list("template_id", flat=True)
+            .distinct()
+        )
+
+        return Response({
+            "templates": [{"template_id": t} for t in sorted(template_ids)]
+        })
+    

@@ -34,14 +34,14 @@ const Login = () => {
       toast.success("Login successful");
       setTimeout(() => {
         if (userRole === 'consultant') {
-          window.location.href = '/consultant';
-        }
-        else if (userRole === 'lead') {
-          window.location.href = '/lead';
+          window.location.href = '/consultant/select-organization';
+        } else if (userRole === 'lead') {
+          window.location.href = '/lead/select-organization';
         }
       }, 1000);
     } catch (err) {
       setError('Invalid credentials');
+      toast.error("Invalid credentials");
     }
   };
   return (

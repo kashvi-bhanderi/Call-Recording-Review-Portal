@@ -11,17 +11,17 @@ const DashboardHeader = ({ title }) => {
     try {
       await axiosInstance.post("/auth/logout/");
       localStorage.removeItem("role");
+      localStorage.removeItem("selectedOrg");
+      localStorage.removeItem("selectedTemplate");
       toast.success("Logout successful");
 
       setTimeout(() => {
         navigate("/");
       }, 800);
-      navigate("/");
     } catch (error) {
-      toast.error("Logout failed:", error);
+      toast.error("Logout failed");
     }
   };
-
   const handleUpdatePassword = () => {
     navigate("/update-password");
   };

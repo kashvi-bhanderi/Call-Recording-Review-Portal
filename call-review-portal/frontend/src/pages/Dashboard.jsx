@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
@@ -10,6 +9,9 @@ import toast from "react-hot-toast";
 
 const Dashboard = ({ role }) => {
   const navigate = useNavigate();
+
+  const savedOrg = localStorage.getItem("selectedOrg") || "";
+  const savedTemplate = localStorage.getItem("selectedTemplate") || "";
 
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,18 +26,17 @@ const Dashboard = ({ role }) => {
 
   const [filterOptions, setFilterOptions] = useState({
     languages: [],
-    schemas: [],
     statuses: [],
     rated_by: [],
     tags: [],
   });
 
   const [filters, setFilters] = useState({
-    template_id: "",
+    template_id: savedTemplate,
     phone_number: "",
     uuid: "",
     language: [],
-    schema_name: [],
+    schema_name: savedOrg ? [savedOrg] : [],
     status: [],
     created_after: "",
     created_before: "",
@@ -59,16 +60,18 @@ const Dashboard = ({ role }) => {
       const params = {
         page: customPage,
         ordering: customSortBy,
-        ...(role === "lead" &&
-          customFilters.template_id && { template_id: customFilters.template_id }),
+
+        // Always apply saved org + template silently from localStorage-based filters
+        ...(customFilters.template_id && { template_id: customFilters.template_id }),
+        ...(customFilters.schema_name.length && {
+          schema_name: customFilters.schema_name.join(","),
+        }),
+
         ...(role === "lead" &&
           customFilters.phone_number && { phone_number: customFilters.phone_number }),
         ...(customFilters.uuid && { uuid: customFilters.uuid }),
         ...(customFilters.language.length && {
           language: customFilters.language.join(","),
-        }),
-        ...(customFilters.schema_name.length && {
-          schema_name: customFilters.schema_name.join(","),
         }),
         ...(customFilters.status.length && {
           status: customFilters.status.join(","),
@@ -91,8 +94,8 @@ const Dashboard = ({ role }) => {
       const results = response.data.results ?? response.data;
 
       setCalls(results);
-      setNextPageUrl(response.data.next);
-      setPrevPageUrl(response.data.previous);
+      setNextPageUrl(response.data.next ?? null);
+      setPrevPageUrl(response.data.previous ?? null);
 
       const totalCount = response.data.count ?? results.length;
       setTotalPages(Math.ceil(totalCount / PAGE_SIZE));
@@ -151,7 +154,6 @@ const Dashboard = ({ role }) => {
 
       setFilterOptions({
         languages: res.data.languages || [],
-        schemas: res.data.schemas || [],
         statuses: res.data.statuses || [],
         rated_by: res.data.rated_by || [],
         tags: res.data.tags || [],
@@ -161,18 +163,44 @@ const Dashboard = ({ role }) => {
     }
   };
 
+  /* ================= INITIAL LOAD ================= */
   useEffect(() => {
-    fetchFilterOptions();
+    const initializeDashboard = async () => {
+      await fetchFilterOptions();
+
+      const initialFilters = {
+        template_id: savedTemplate,
+        phone_number: "",
+        uuid: "",
+        language: [],
+        schema_name: savedOrg ? [savedOrg] : [],
+        status: [],
+        created_after: "",
+        created_before: "",
+        rated_by: "",
+        tags: [],
+      };
+
+      setFilters(initialFilters);
+      fetchCalls(initialFilters, 1, sortBy);
+    };
+
+    initializeDashboard();
+    // eslint-disable-next-line
   }, []);
 
+  /* ================= PAGE / SORT CHANGES ================= */
   useEffect(() => {
-    fetchCalls(filters, page, sortBy);
+    if (page !== 1 || sortBy !== "-attempt_on_time_stamp") {
+      fetchCalls(filters, page, sortBy);
+    }
     // eslint-disable-next-line
   }, [page, sortBy]);
 
   /* ================= HANDLERS ================= */
   const handleChange = (e) => {
     const { name, value } = e.target;
+
     setFilters((prev) => ({
       ...prev,
       [name]: value,
@@ -184,13 +212,14 @@ const Dashboard = ({ role }) => {
     fetchCalls(filters, 1, sortBy);
   };
 
-  const handleReset = () => {
-    const clearedFilters = {
-      template_id: "",
+  const handleReset = async () => {
+    // Keep saved org + template intact (because dashboard should remain scoped)
+    const resetFilters = {
+      template_id: savedTemplate,
       phone_number: "",
       uuid: "",
       language: [],
-      schema_name: [],
+      schema_name: savedOrg ? [savedOrg] : [],
       status: [],
       created_after: "",
       created_before: "",
@@ -198,52 +227,49 @@ const Dashboard = ({ role }) => {
       tags: [],
     };
 
-    setFilters(clearedFilters);
+    setFilters(resetFilters);
     setSortBy("-attempt_on_time_stamp");
     setPage(1);
-    fetchCalls(clearedFilters, 1, "-attempt_on_time_stamp");
+    fetchCalls(resetFilters, 1, "-attempt_on_time_stamp");
   };
 
   /* ================= CONSULTANT INLINE RATING ================= */
   const areAllMetricsFilled = (metrics) => {
-  return metrics.length > 0 && metrics.every((m) => Number(m.value) > 0);
-};
+    return metrics.length > 0 && metrics.every((m) => Number(m.value) > 0);
+  };
+
   const handleMetricChange = (uuid, metricName, value) => {
-  setRowData((prev) => {
-    const updatedMetrics = (prev[uuid]?.metrics || []).map((m) =>
-      m.name === metricName ? { ...m, value } : m
-    );
+    setRowData((prev) => {
+      const updatedMetrics = (prev[uuid]?.metrics || []).map((m) =>
+        m.name === metricName ? { ...m, value } : m
+      );
 
-    const isSubmitted = prev[uuid]?.isSubmitted;
-    const isLocked = calls.find((c) => c.uuid === uuid)?.is_locked;
+      const isSubmitted = prev[uuid]?.isSubmitted;
+      const isLocked = calls.find((c) => c.uuid === uuid)?.is_locked;
 
-    // ✅ AUTO SAVE CONDITION
-    if (!isSubmitted && !isLocked && areAllMetricsFilled(updatedMetrics)) {
-      autoSubmitReview(uuid, updatedMetrics);
-      if (submittingMap[uuid]) return;
-    }
+      if (!isSubmitted && !isLocked && areAllMetricsFilled(updatedMetrics)) {
+        if (!submittingMap[uuid]) {
+          autoSubmitReview(uuid, updatedMetrics);
+        }
+      }
 
-    return {
-      ...prev,
-      [uuid]: {
-        ...prev[uuid],
-        metrics: updatedMetrics,
-      },
-    };
-  });
-};
+      return {
+        ...prev,
+        [uuid]: {
+          ...prev[uuid],
+          metrics: updatedMetrics,
+        },
+      };
+    });
+  };
 
-  const submitInlineReview = async (uuid) => {
+  const autoSubmitReview = async (uuid, metrics) => {
     try {
       setSubmittingMap((prev) => ({ ...prev, [uuid]: true }));
 
-      const currentRow = rowData[uuid];
       const ratings = {};
-
-      (currentRow?.metrics || []).forEach((m) => {
-        if (m.value !== null && m.value !== "") {
-          ratings[m.name] = Number(m.value);
-        }
+      metrics.forEach((m) => {
+        ratings[m.name] = Number(m.value);
       });
 
       await axiosInstance.post("/calls/consultant-rating/", {
@@ -251,58 +277,23 @@ const Dashboard = ({ role }) => {
         ratings,
         comments: "",
       });
+
       setRowData((prev) => ({
         ...prev,
         [uuid]: {
           ...prev[uuid],
           isSubmitted: true,
-
         },
       }));
 
-      toast.success("Review submitted successfully");
       fetchCalls(filters, page, sortBy);
     } catch (err) {
-      console.error("Inline submit failed:", err);
-      const msg = err.response?.data?.error || "Failed to submit review";
-      toast.error(msg);
-      fetchCalls(filters, page, sortBy);
+      console.error("Auto submit failed:", err);
     } finally {
       setSubmittingMap((prev) => ({ ...prev, [uuid]: false }));
     }
   };
-  const autoSubmitReview = async (uuid, metrics) => {
-  try {
-    setSubmittingMap((prev) => ({ ...prev, [uuid]: true }));
 
-    const ratings = {};
-    metrics.forEach((m) => {
-      ratings[m.name] = Number(m.value);
-    });
-
-    await axiosInstance.post("/calls/consultant-rating/", {
-      call_uuid: uuid,
-      ratings,
-      comments: "",
-    });
-
-    setRowData((prev) => ({
-      ...prev,
-      [uuid]: {
-        ...prev[uuid],
-        isSubmitted: true,
-      },
-    }));
-
-    // optional: refresh for lock sync
-    fetchCalls(filters, page, sortBy);
-
-  } catch (err) {
-    console.error("Auto submit failed:", err);
-  } finally {
-    setSubmittingMap((prev) => ({ ...prev, [uuid]: false }));
-  }
-};
   /* ================= TABLE COLUMNS ================= */
   const leadColumns = [
     { key: "template_id", label: "Template ID" },
@@ -343,27 +334,15 @@ const Dashboard = ({ role }) => {
         <div className="filter-card">
           <div className="filter-grid">
             {role === "lead" && (
-              <>
-                <div className="filter-item">
-                  <input
-                    type="text"
-                    name="template_id"
-                    placeholder="Template ID"
-                    value={filters.template_id}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="filter-item">
-                  <input
-                    type="text"
-                    name="phone_number"
-                    placeholder="Mobile No"
-                    value={filters.phone_number}
-                    onChange={handleChange}
-                  />
-                </div>
-              </>
+              <div className="filter-item">
+                <input
+                  type="text"
+                  name="phone_number"
+                  placeholder="Mobile No"
+                  value={filters.phone_number}
+                  onChange={handleChange}
+                />
+              </div>
             )}
 
             <div className="filter-item">
@@ -412,25 +391,6 @@ const Dashboard = ({ role }) => {
 
             <div className="filter-item">
               <select
-                value={filters.schema_name?.[0] || ""}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    schema_name: e.target.value ? [e.target.value] : [],
-                  }))
-                }
-              >
-                <option value="">Select Organization</option>
-                {filterOptions.schemas.map((s) => (
-                  <option key={s.schema_name} value={s.schema_name}>
-                    {s.org_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="filter-item">
-              <select
                 value={filters.status?.[0] || ""}
                 onChange={(e) =>
                   setFilters((prev) => ({
@@ -448,23 +408,7 @@ const Dashboard = ({ role }) => {
               </select>
             </div>
 
-            <div className="filter-item filter-item-span-2">
-              <div className="date-range">
-                <input
-                  type="date"
-                  name="created_after"
-                  value={filters.created_after}
-                  onChange={handleChange}
-                />
-                <span className="to-text">to</span>
-                <input
-                  type="date"
-                  name="created_before"
-                  value={filters.created_before}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
+
 
             {role === "lead" && (
               <>
@@ -507,6 +451,23 @@ const Dashboard = ({ role }) => {
                 </div>
               </>
             )}
+            <div className="filter-item filter-item-span-2">
+              <div className="date-range">
+                <input
+                  type="date"
+                  name="created_after"
+                  value={filters.created_after}
+                  onChange={handleChange}
+                />
+                <span className="to-text">to</span>
+                <input
+                  type="date"
+                  name="created_before"
+                  value={filters.created_before}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="filter-actions">
@@ -567,16 +528,11 @@ const Dashboard = ({ role }) => {
                           );
                         }
 
-                        /* ================= REPLACE ONLY THIS BLOCK ================= */
-
                         if (col.key === "inline_rating") {
                           const row = rowData[call.uuid] || {};
                           const rowMetrics = row.metrics || [];
-
                           const isSubmitted = row.isSubmitted;
-
                           const isLocked = !!call.is_locked;
-
                           const disabled = isLocked || isSubmitted;
 
                           return (
@@ -595,21 +551,21 @@ const Dashboard = ({ role }) => {
                                           display: "flex",
                                           alignItems: "center",
                                           justifyContent: "space-between",
-                                          marginBottom: "2px",
+                                          marginBottom: "6px",
+                                          gap: "8px",
                                         }}
                                       >
-                                        {/* label */}
                                         <span
                                           style={{
                                             fontSize: "12px",
                                             color: "#555",
-                                            textTransform: "lowercase",
+                                            textTransform: "capitalize",
+                                            minWidth: "70px",
                                           }}
                                         >
                                           {m.name}
                                         </span>
 
-                                        {/* stars */}
                                         {useStars ? (
                                           <StarRating
                                             value={m.value ?? 0}
@@ -622,18 +578,23 @@ const Dashboard = ({ role }) => {
                                         ) : (
                                           <input
                                             type="number"
+                                            min="0"
+                                            max={m.max}
                                             value={m.value ?? ""}
                                             disabled={disabled}
                                             onChange={(e) =>
-                                              handleMetricChange(call.uuid, m.name, e.target.value)
+                                              handleMetricChange(
+                                                call.uuid,
+                                                m.name,
+                                                e.target.value
+                                              )
                                             }
+                                            style={{ width: "70px" }}
                                           />
                                         )}
                                       </div>
                                     );
                                   })}
-
-
                                 </>
                               )}
                             </td>
@@ -670,7 +631,7 @@ const Dashboard = ({ role }) => {
         {/* Pagination */}
         <div className="pagination">
           <button
-            disabled={!prevPageUrl}
+            disabled={!prevPageUrl || page <= 1}
             onClick={() => setPage((prev) => prev - 1)}
           >
             Previous
