@@ -82,6 +82,10 @@ const CallReview = () => {
   };
 
   const submitReview = async () => {
+     if (!allMetricsFilled) {
+    toast.error("Please rate all fields before submitting.");
+    return;
+  }
     try {
       const ratings = {};
 
@@ -111,7 +115,11 @@ const CallReview = () => {
     }
   };
 
-  const disableInputs = !isEditable || (isSubmitted && !isEditing);
+const disableInputs = !isEditable || (isSubmitted && !isEditing);
+
+const allMetricsFilled =
+  metrics.length > 0 &&
+  metrics.every((m) => m.value !== null && m.value !== "");
 
   return (
     <div className="review-page">

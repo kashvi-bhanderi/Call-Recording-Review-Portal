@@ -39,9 +39,9 @@ class SubmitCallReviewAPIView(APIView):
         if call:
             check_lock_expiry(call)
 
-            if call.rating_locked:
+            if call.rated_by_id and call.rated_by_id != request.user.id:
                 return Response(
-                    {"error": "Lead is reviewing this call"},
+                    {"error": "Another consultant already rated this call"},
                     status=403
                 )
 
@@ -51,9 +51,9 @@ class SubmitCallReviewAPIView(APIView):
                     status=403
                 )
 
-            if call.rated_by_id and call.rated_by_id != request.user.id:
+            if call.rating_locked:
                 return Response(
-                    {"error": "Another consultant already rated this call"},
+                    {"error": "Lead is reviewing this call"},
                     status=403
                 )
 
@@ -334,18 +334,26 @@ class ConsultantCallDetailAPIView(APIView):
 
         check_lock_expiry(call)
 
-        is_locked = (
-            call.rating_locked
-            or call.status in [3, 4]
-            or (call.rated_by_id and call.rated_by_id != request.user.id)
-        )
+        is_locked = False
         lock_reason = None
-        if call.status in [3, 4]:
-            lock_reason = "permanent"
-        elif call.rating_locked:
-            lock_reason = "temporary"
-        elif call.rated_by_id and call.rated_by_id != request.user.id:
+
+        # Case 1: Another consultant already rated this call
+        # This must take highest priority for non-owner consultants
+        if call.rated_by_id and call.rated_by_id != request.user.id:
+            is_locked = True
             lock_reason = "consultant_taken"
+
+        # Case 2: Same consultant who rated the call
+        else:
+            # Lead already finalized review
+            if call.status in [3, 4]:
+                is_locked = True
+                lock_reason = "permanent"
+
+            # Lead is currently reviewing (temporary lock)
+            elif call.rating_locked:
+                is_locked = True
+                lock_reason = "temporary"
 
         metrics = EvaluationMetric.objects.filter(is_active=True)
 

@@ -6,8 +6,11 @@ import "./Login.css";
 
 const SelectOrganization = ({ role }) => {
   const [organizations, setOrganizations] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [selectedOrg, setSelectedOrg] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [loadingOrgs, setLoadingOrgs] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -15,7 +18,7 @@ const SelectOrganization = ({ role }) => {
   }, []);
 
   const fetchOrganizations = async () => {
-    setLoading(true);
+    setLoadingOrgs(true);
     try {
       const res = await axiosInstance.get("/calls/selectable-organizations/");
       setOrganizations(res.data.organizations || []);
@@ -23,7 +26,40 @@ const SelectOrganization = ({ role }) => {
       console.error("Error fetching organizations:", error);
       toast.error("Failed to load organizations");
     } finally {
-      setLoading(false);
+      setLoadingOrgs(false);
+    }
+  };
+
+  const fetchTemplates = async (schemaName) => {
+    if (!schemaName) {
+      setTemplates([]);
+      return;
+    }
+
+    setLoadingTemplates(true);
+    try {
+      const res = await axiosInstance.get("/calls/selectable-templates/", {
+        params: { schema_name: schemaName },
+      });
+      setTemplates(res.data.templates || []);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      toast.error("Failed to load templates");
+      setTemplates([]);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleOrgChange = async (e) => {
+    const org = e.target.value;
+    setSelectedOrg(org);
+    setSelectedTemplate("");
+    setTemplates([]);
+    localStorage.removeItem("selectedTemplate");
+
+    if (org) {
+      await fetchTemplates(org);
     }
   };
 
@@ -33,28 +69,40 @@ const SelectOrganization = ({ role }) => {
       return;
     }
 
+    if (!selectedTemplate) {
+      toast.error("Please select template");
+      return;
+    }
+
     localStorage.setItem("selectedOrg", selectedOrg);
-    localStorage.removeItem("selectedTemplate");
+    localStorage.setItem("selectedTemplate", selectedTemplate);
 
     if (role === "consultant") {
-      navigate("/consultant/select-template");
+      navigate("/consultant");
     } else {
-      navigate("/lead/select-template");
+      navigate("/lead");
     }
   };
+
+  const heading = !selectedOrg ? "Select Organization" : "Select Template";
+  const subtitle = !selectedOrg
+    ? "Choose an organization to continue"
+    : "Now choose a template for the selected organization";
 
   return (
     <div className="login-container">
       <div className="login-form">
-        <h2>Select Organization</h2>
+        <h2 className="select-page-title">{heading}</h2>
+        <p className="select-page-subtitle">{subtitle}</p>
 
-        {loading ? (
+        {loadingOrgs ? (
           <p>Loading organizations...</p>
         ) : (
           <>
+            <label className="field-label">Organization</label>
             <select
               value={selectedOrg}
-              onChange={(e) => setSelectedOrg(e.target.value)}
+              onChange={handleOrgChange}
               style={{
                 width: "100%",
                 padding: "10px",
@@ -71,7 +119,51 @@ const SelectOrganization = ({ role }) => {
               ))}
             </select>
 
-            <button onClick={handleContinue}>Continue</button>
+            {selectedOrg && (
+              <>
+                <label className="field-label">Template</label>
+
+                {loadingTemplates ? (
+                  <p>Loading templates...</p>
+                ) : (
+                  <select
+                    value={selectedTemplate}
+                    onChange={(e) => setSelectedTemplate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      marginBottom: "16px",
+                      borderRadius: "8px",
+                      border: "1px solid #d1d5db",
+                    }}
+                  >
+                    <option value="">Select Template</option>
+                    {templates.map((template) => (
+                      <option
+                        key={template.template_id}
+                        value={template.template_id}
+                      >
+                        {template.template_name
+                          ? `${template.template_name} (${template.template_id})`
+                          : template.template_id}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </>
+            )}
+
+            <button
+              onClick={handleContinue}
+              disabled={!selectedOrg || !selectedTemplate}
+              style={{
+                opacity: !selectedOrg || !selectedTemplate ? 0.7 : 1,
+                cursor:
+                  !selectedOrg || !selectedTemplate ? "not-allowed" : "pointer",
+              }}
+            >
+              Continue
+            </button>
           </>
         )}
       </div>
