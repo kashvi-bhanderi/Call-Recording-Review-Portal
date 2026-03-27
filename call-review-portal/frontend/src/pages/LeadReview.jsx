@@ -63,6 +63,10 @@ const LeadReview = () => {
   };
 
   const submitReview = async () => {
+    if (someMetricsFilled && !allMetricsFilled) {
+      toast.error("Please rate all fields before submitting.");
+      return;
+    }
     try {
       if (!status) {
         toast.error("Please select status");
@@ -99,7 +103,13 @@ const LeadReview = () => {
   };
   const isLocked = metadata.is_locked;
   const disableInputs = isLocked || (isSubmitted && !isEditing);
+  const someMetricsFilled =
+    metrics.length > 0 &&
+    metrics.some((m) => m.value !== null && m.value !== "");
 
+  const allMetricsFilled =
+    metrics.length > 0 &&
+    metrics.every((m) => m.value !== null && m.value !== "");
   return (
     <div className="review-page">
       <div className="review-container">

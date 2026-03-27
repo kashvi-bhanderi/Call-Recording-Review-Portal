@@ -606,7 +606,7 @@ class LeadSubmitReviewAPIView(APIView):
 
         if new_status not in [3, 4]:
             return Response(
-                {"error": "Status must be 3 (Production Issue) or 4 (Approved)"},
+                {"error": "Please select the status"},
                 status=400
             )
 

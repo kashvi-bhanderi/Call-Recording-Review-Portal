@@ -85,15 +85,11 @@ const SelectOrganization = ({ role }) => {
   };
 
   const heading = !selectedOrg ? "Select Organization" : "Select Template";
-  const subtitle = !selectedOrg
-    ? "Choose an organization to continue"
-    : "Now choose a template for the selected organization";
 
   return (
     <div className="login-container">
       <div className="login-form">
         <h2 className="select-page-title">{heading}</h2>
-        <p className="select-page-subtitle">{subtitle}</p>
 
         {loadingOrgs ? (
           <p>Loading organizations...</p>
