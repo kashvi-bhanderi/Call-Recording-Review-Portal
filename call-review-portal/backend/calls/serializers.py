@@ -6,7 +6,7 @@ from rest_framework import serializers
 from .models import Call, EvaluationCallRating, EvaluationMetric
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
-
+import re
 class DashboardCallSerializer(serializers.ModelSerializer):
     language_name = serializers.SerializerMethodField()
     organization_name = serializers.SerializerMethodField()
@@ -18,6 +18,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
     attempt_on_time_stamp = serializers.DateTimeField()
     metrics = serializers.SerializerMethodField()
     is_locked = serializers.SerializerMethodField()
+    entities = serializers.SerializerMethodField()  
     lock_message = serializers.SerializerMethodField()
     class Meta:
         model = CallCH
@@ -37,8 +38,23 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             "metrics",
             "is_locked",
             "lock_message",
+            "entities",
         ]
 
+    def get_entities(self, obj):
+        raw = obj.entities
+
+        if not raw or raw == "None":
+            return {}
+
+        if isinstance(raw, dict):
+            return raw
+
+        if isinstance(raw, str):
+            pairs = re.findall(r'"(.*?)"\s*=>\s*"(.*?)"', raw)
+            return {k: v for k, v in pairs}
+
+        return {}
     # ------------------------
     # LANGUAGE NAME
     # ------------------------

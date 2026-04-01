@@ -21,7 +21,8 @@ const Dashboard = ({ role }) => {
 
   const [nextPageUrl, setNextPageUrl] = useState(null);
   const [prevPageUrl, setPrevPageUrl] = useState(null);
-
+  const [entityKeys, setEntityKeys] = useState([]);
+  const [entityValues, setEntityValues] = useState([]);
   const PAGE_SIZE = 8;
 
   const [filterOptions, setFilterOptions] = useState({
@@ -42,6 +43,8 @@ const Dashboard = ({ role }) => {
     created_before: "",
     rated_by: "",
     tags: [],
+    entity_key: "",
+    entity_value: "",
   });
 
   const [audioMap, setAudioMap] = useState({});
@@ -66,7 +69,8 @@ const Dashboard = ({ role }) => {
         ...(customFilters.schema_name.length && {
           schema_name: customFilters.schema_name.join(","),
         }),
-
+        ...(customFilters.entity_key && { entity_key: customFilters.entity_key }),
+        ...(customFilters.entity_value && { entity_value: customFilters.entity_value }),
         ...(role === "lead" &&
           customFilters.phone_number && { phone_number: customFilters.phone_number }),
         ...(customFilters.uuid && { uuid: customFilters.uuid }),
@@ -163,6 +167,49 @@ const Dashboard = ({ role }) => {
     }
   };
 
+  /* ================= FETCH ENTITY KEYS ================= */
+  const fetchEntityKeys = async (schemaName, templateId) => {
+    if (!schemaName || !templateId) {
+      setEntityKeys([]);
+      return;
+    }
+
+    try {
+      const res = await axiosInstance.get("/calls/selectable-entities/", {
+        params: {
+          schema_name: schemaName,
+          template_id: templateId,
+        },
+      });
+
+      setEntityKeys(res.data.entities || []);
+    } catch (error) {
+      console.error("Error fetching entity keys:", error);
+      setEntityKeys([]);
+    }
+  };
+  /* ================= FETCH ENTITY VALUES ================= */
+  const fetchEntityValues = async (schemaName, templateId, entityKey) => {
+    if (!schemaName || !templateId || !entityKey) {
+      setEntityValues([]);
+      return;
+    }
+
+    try {
+      const res = await axiosInstance.get("/calls/selectable-entity-values/", {
+        params: {
+          schema_name: schemaName,
+          template_id: templateId,
+          entity_key: entityKey,
+        },
+      });
+
+      setEntityValues(res.data.values || []);
+    } catch (error) {
+      console.error("Error fetching entity values:", error);
+      setEntityValues([]);
+    }
+  };
   /* ================= INITIAL LOAD ================= */
   useEffect(() => {
     const initializeDashboard = async () => {
@@ -179,9 +226,14 @@ const Dashboard = ({ role }) => {
         created_before: "",
         rated_by: "",
         tags: [],
+        entity_key: "",
+        entity_value: "",
       };
 
       setFilters(initialFilters);
+      if (savedOrg && savedTemplate) {
+        await fetchEntityKeys(savedOrg, savedTemplate);
+      }
       fetchCalls(initialFilters, 1, sortBy);
     };
 
@@ -196,7 +248,18 @@ const Dashboard = ({ role }) => {
     }
     // eslint-disable-next-line
   }, [page, sortBy]);
+  /* ================= ENTITY VALUE LOAD ================= */
+  useEffect(() => {
+    const schemaName = filters.schema_name?.[0];
+    const templateId = filters.template_id;
 
+    if (schemaName && templateId && filters.entity_key) {
+      fetchEntityValues(schemaName, templateId, filters.entity_key);
+    } else {
+      setEntityValues([]);
+    }
+    // eslint-disable-next-line
+  }, [filters.entity_key, filters.template_id, filters.schema_name]);
   /* ================= HANDLERS ================= */
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -207,10 +270,15 @@ const Dashboard = ({ role }) => {
     }));
   };
 
-  const handleSearch = () => {
-    setPage(1);
-    fetchCalls(filters, 1, sortBy);
-  };
+const handleSearch = () => {
+  if (filters.entity_key && !filters.entity_value) {
+    toast.error("Please select entity value");
+    return;
+  }
+
+  setPage(1);
+  fetchCalls(filters, 1, sortBy);
+};
 
   const handleReset = async () => {
     // Keep saved org + template intact (because dashboard should remain scoped)
@@ -225,6 +293,8 @@ const Dashboard = ({ role }) => {
       created_before: "",
       rated_by: "",
       tags: [],
+      entity_key: "",
+      entity_value: "",
     };
 
     setFilters(resetFilters);
@@ -408,7 +478,46 @@ const Dashboard = ({ role }) => {
               </select>
             </div>
 
+            <div className="filter-item">
+              <select
+                value={filters.entity_key}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    entity_key: e.target.value,
+                    entity_value: "", // reset selected value when key changes
+                  }))
+                }
+                disabled={!filters.schema_name?.[0] || !filters.template_id}
+              >
+                <option value="">Select Entity Key</option>
+                {entityKeys.map((key) => (
+                  <option key={key} value={key}>
+                    {key}
+                  </option>
+                ))}
+              </select>
+            </div>
 
+            <div className="filter-item">
+              <select
+                value={filters.entity_value}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    entity_value: e.target.value,
+                  }))
+                }
+                disabled={!filters.entity_key}
+              >
+                <option value="">Select Entity Value</option>
+                {entityValues.map((val) => (
+                  <option key={val} value={val}>
+                    {val}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {role === "lead" && (
               <>

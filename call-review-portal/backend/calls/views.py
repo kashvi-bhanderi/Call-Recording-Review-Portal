@@ -23,8 +23,27 @@ from .services import (
 from rest_framework import status
 from .s3_service import find_audio_file, generate_signed_url
 from django.conf import settings
+import json, ast
 
+import re
 
+def parse_entities(raw_entities):
+    """
+    Parse ClickHouse entities stored like:
+    "key"=>"value", "key2"=>"value2"
+    into Python dict.
+    """
+    if not raw_entities or raw_entities == "None":
+        return {}
+
+    if isinstance(raw_entities, dict):
+        return raw_entities
+
+    if isinstance(raw_entities, str):
+        pairs = re.findall(r'"(.*?)"\s*=>\s*"(.*?)"', raw_entities)
+        return {k: v for k, v in pairs}
+
+    return {}
 # ------------------------
 # CONSULTANT SUBMIT
 # ------------------------
@@ -115,6 +134,8 @@ class DashboardCallView(ListAPIView):
         rated_by = self.request.GET.get("rated_by")
         tags = self.request.GET.get("tags")
 
+        entity_key = self.request.GET.get("entity_key")
+        entity_value = self.request.GET.get("entity_value")
         if status_filter:
             status_values = [int(s) for s in status_filter.split(",") if s.strip().isdigit()]
 
@@ -148,6 +169,28 @@ class DashboardCallView(ListAPIView):
             ).values_list("uuid", flat=True)
             queryset = queryset.filter(uuid__in=list(uuids))
 
+                # ------------------------
+        # ENTITY FILTER (CLICKHOUSE SAFE - Python level filtering)
+        # ------------------------
+        if entity_key and entity_value:
+            matched_uuids = []
+
+            for call in queryset:
+                entities = parse_entities(call.entities)
+
+                if entity_key not in entities:
+                    continue
+
+                val = entities.get(entity_key)
+
+                if isinstance(val, list):
+                    if entity_value in [str(v) for v in val]:
+                        matched_uuids.append(call.uuid)
+                else:
+                    if str(val) == entity_value:
+                        matched_uuids.append(call.uuid)
+
+            queryset = queryset.filter(uuid__in=matched_uuids)
         # ------------------------
         # MANUAL SORTING (CLICKHOUSE SAFE)
         # ------------------------
@@ -411,6 +454,7 @@ class ConsultantCallDetailAPIView(APIView):
                 "attempt_on_time_stamp": ch_call.attempt_on_time_stamp,
                 "status": call.get_status_display(),
                 "rated_by": call.rated_by.username if call.rated_by else None,
+                "entities": ch_call.entities or {},
             },
             "metrics": [
                 {
@@ -551,6 +595,7 @@ class LeadCallDetailAPIView(APIView):
                 "attempt_on_time_stamp": ch_call.attempt_on_time_stamp,
                 "status": call.get_status_display(),
                 "is_locked": locked_by_other_lead,
+                "entities": ch_call.entities or {},
                 "lock_message": (
                     "Another lead already reviewed this call"
                     if call.reviewed_by_id and call.reviewed_by_id != request.user.id and call.status in [3, 4]
@@ -830,3 +875,146 @@ class SelectableTemplatesAPIView(APIView):
             "templates": [{"template_id": t} for t in sorted(template_ids)]
         })
     
+# ------------------------
+# SELECTABLE ENTITIES
+# ------------------------
+class SelectableEntitiesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CookieJWTAuthentication]
+
+    def get(self, request):
+        user = request.user
+        schema_name = request.GET.get("schema_name")
+        template_id = request.GET.get("template_id")
+
+        if not schema_name:
+            return Response({"error": "schema_name is required"}, status=400)
+
+        if not template_id:
+            return Response({"error": "template_id is required"}, status=400)
+
+        try:
+            template_id = int(template_id)
+        except (TypeError, ValueError):
+            return Response({"error": "template_id must be a valid integer"}, status=400)
+
+        ch_queryset = CallCH.objects.using("clickhouse").all()
+
+        # ------------------------
+        # ACCESS CONTROL
+        # ------------------------
+        if not user.is_superuser:
+            has_org_access = user.accessible_organizations.filter(schema_name=schema_name).exists()
+            if not has_org_access:
+                return Response({"entities": []})
+
+            allowed_languages = list(
+                user.accessible_languages.values_list("language", flat=True)
+            )
+            if not allowed_languages:
+                return Response({"entities": []})
+
+            ch_queryset = ch_queryset.filter(
+                schema_name=schema_name,
+                template_id=template_id,
+                language__in=allowed_languages
+            )
+        else:
+            ch_queryset = ch_queryset.filter(
+                schema_name=schema_name,
+                template_id=template_id
+            )
+
+        # ------------------------
+        # COLLECT UNIQUE ENTITY KEYS
+        # ------------------------
+        entity_keys = set()
+
+        for call in ch_queryset.only("entities"):
+            entities = parse_entities(call.entities)
+            entity_keys.update(entities.keys())
+
+        return Response({
+            "entities": sorted(list(entity_keys))
+        })
+# ------------------------
+# SELECTABLE ENTITY VALUES
+# ------------------------
+class SelectableEntityValuesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CookieJWTAuthentication]
+
+    def get(self, request):
+        user = request.user
+        schema_name = request.GET.get("schema_name")
+        template_id = request.GET.get("template_id")
+        entity_key = request.GET.get("entity_key")
+
+        if not schema_name:
+            return Response({"error": "schema_name is required"}, status=400)
+
+        if not template_id:
+            return Response({"error": "template_id is required"}, status=400)
+
+        if not entity_key:
+            return Response({"error": "entity_key is required"}, status=400)
+
+        try:
+            template_id = int(template_id)
+        except (TypeError, ValueError):
+            return Response({"error": "template_id must be a valid integer"}, status=400)
+
+        ch_queryset = CallCH.objects.using("clickhouse").all()
+
+        # ------------------------
+        # ACCESS CONTROL
+        # ------------------------
+        if not user.is_superuser:
+            has_org_access = user.accessible_organizations.filter(schema_name=schema_name).exists()
+            if not has_org_access:
+                return Response({
+                    "entity_key": entity_key,
+                    "values": []
+                })
+
+            allowed_languages = list(
+                user.accessible_languages.values_list("language", flat=True)
+            )
+            if not allowed_languages:
+                return Response({
+                    "entity_key": entity_key,
+                    "values": []
+                })
+
+            ch_queryset = ch_queryset.filter(
+                schema_name=schema_name,
+                template_id=template_id,
+                language__in=allowed_languages
+            )
+        else:
+            ch_queryset = ch_queryset.filter(
+                schema_name=schema_name,
+                template_id=template_id
+            )
+
+        values = set()
+
+        for call in ch_queryset.only("entities"):
+            entities = parse_entities(call.entities)
+
+            if entity_key not in entities:
+                continue
+
+            val = entities.get(entity_key)
+
+            if isinstance(val, list):
+                for v in val:
+                    if v not in [None, ""]:
+                        values.add(str(v))
+            elif val not in [None, ""]:
+                values.add(str(val))
+
+        return Response({
+            "entity_key": entity_key,
+            "values": sorted(list(values))
+        })
