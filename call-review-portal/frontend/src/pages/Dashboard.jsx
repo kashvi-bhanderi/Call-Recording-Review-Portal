@@ -22,7 +22,7 @@ const Dashboard = ({ role }) => {
   const [nextPageUrl, setNextPageUrl] = useState(null);
   const [prevPageUrl, setPrevPageUrl] = useState(null);
   const [entityKeys, setEntityKeys] = useState([]);
-  const [entityValues, setEntityValues] = useState([]);
+  const [entityValueOptions, setEntityValueOptions] = useState({});
   const PAGE_SIZE = 8;
 
   const [filterOptions, setFilterOptions] = useState({
@@ -43,8 +43,7 @@ const Dashboard = ({ role }) => {
     created_before: "",
     rated_by: "",
     tags: [],
-    entity_key: "",
-    entity_value: "",
+    entity_filters: [],
   });
 
   const [audioMap, setAudioMap] = useState({});
@@ -69,8 +68,18 @@ const Dashboard = ({ role }) => {
         ...(customFilters.schema_name.length && {
           schema_name: customFilters.schema_name.join(","),
         }),
-        ...(customFilters.entity_key && { entity_key: customFilters.entity_key }),
-        ...(customFilters.entity_value && { entity_value: customFilters.entity_value }),
+        ...(customFilters.entity_filters?.some(
+          (f) => f.key && f.values && f.values.length
+        ) && {
+          entity_filters: JSON.stringify(
+            customFilters.entity_filters
+              .filter((f) => f.key && f.values?.length)
+              .map((f) => ({
+                key: f.key,
+                values: f.values,
+              }))
+          ),
+        }),
         ...(role === "lead" &&
           customFilters.phone_number && { phone_number: customFilters.phone_number }),
         ...(customFilters.uuid && { uuid: customFilters.uuid }),
@@ -189,9 +198,12 @@ const Dashboard = ({ role }) => {
     }
   };
   /* ================= FETCH ENTITY VALUES ================= */
-  const fetchEntityValues = async (schemaName, templateId, entityKey) => {
+  const fetchEntityValues = async (schemaName, templateId, entityKey, rowIndex) => {
     if (!schemaName || !templateId || !entityKey) {
-      setEntityValues([]);
+      setEntityValueOptions((prev) => ({
+        ...prev,
+        [rowIndex]: [],
+      }));
       return;
     }
 
@@ -204,10 +216,16 @@ const Dashboard = ({ role }) => {
         },
       });
 
-      setEntityValues(res.data.values || []);
+      setEntityValueOptions((prev) => ({
+        ...prev,
+        [rowIndex]: res.data.values || [],
+      }));
     } catch (error) {
       console.error("Error fetching entity values:", error);
-      setEntityValues([]);
+      setEntityValueOptions((prev) => ({
+        ...prev,
+        [rowIndex]: [],
+      }));
     }
   };
   /* ================= INITIAL LOAD ================= */
@@ -226,8 +244,7 @@ const Dashboard = ({ role }) => {
         created_before: "",
         rated_by: "",
         tags: [],
-        entity_key: "",
-        entity_value: "",
+        entity_filters: [],
       };
 
       setFilters(initialFilters);
@@ -249,17 +266,7 @@ const Dashboard = ({ role }) => {
     // eslint-disable-next-line
   }, [page, sortBy]);
   /* ================= ENTITY VALUE LOAD ================= */
-  useEffect(() => {
-    const schemaName = filters.schema_name?.[0];
-    const templateId = filters.template_id;
 
-    if (schemaName && templateId && filters.entity_key) {
-      fetchEntityValues(schemaName, templateId, filters.entity_key);
-    } else {
-      setEntityValues([]);
-    }
-    // eslint-disable-next-line
-  }, [filters.entity_key, filters.template_id, filters.schema_name]);
   /* ================= HANDLERS ================= */
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -269,16 +276,97 @@ const Dashboard = ({ role }) => {
       [name]: value,
     }));
   };
+  const addEntityFilterRow = () => {
+    setFilters((prev) => ({
+      ...prev,
+      entity_filters: [
+        ...(prev.entity_filters || []),
+        { key: "", values: [] },
+      ],
+    }));
+  };
 
-const handleSearch = () => {
-  if (filters.entity_key && !filters.entity_value) {
-    toast.error("Please select entity value");
-    return;
-  }
+  const removeEntityFilterRow = (index) => {
+    setFilters((prev) => {
+      const updated = [...(prev.entity_filters || [])];
+      updated.splice(index, 1);
 
-  setPage(1);
-  fetchCalls(filters, 1, sortBy);
-};
+      return {
+        ...prev,
+        entity_filters: updated,
+      };
+    });
+
+    setEntityValueOptions((prev) => {
+      const updated = { ...prev };
+      delete updated[index];
+
+      // reindex after deletion
+      const reindexed = {};
+      Object.keys(updated).forEach((k) => {
+        const oldIndex = Number(k);
+        if (oldIndex < index) reindexed[oldIndex] = updated[oldIndex];
+        else if (oldIndex > index) reindexed[oldIndex - 1] = updated[oldIndex];
+      });
+
+      return reindexed;
+    });
+  };
+
+  const handleEntityKeyChange = async (index, key) => {
+    const schemaName = filters.schema_name?.[0];
+    const templateId = filters.template_id;
+
+    setFilters((prev) => {
+      const updated = [...(prev.entity_filters || [])];
+      updated[index] = {
+        key,
+        values: [],
+      };
+
+      return {
+        ...prev,
+        entity_filters: updated,
+      };
+    });
+
+    if (key) {
+      await fetchEntityValues(schemaName, templateId, key, index);
+    } else {
+      setEntityValueOptions((prev) => ({
+        ...prev,
+        [index]: [],
+      }));
+    }
+  };
+
+  const handleEntityValuesChange = (index, values) => {
+    setFilters((prev) => {
+      const updated = [...(prev.entity_filters || [])];
+      updated[index] = {
+        ...updated[index],
+        values,
+      };
+
+      return {
+        ...prev,
+        entity_filters: updated,
+      };
+    });
+  };
+  const handleSearch = () => {
+    const invalidEntityRow = (filters.entity_filters || []).find(
+      (f) => f.key && (!f.values || f.values.length === 0)
+    );
+
+    if (invalidEntityRow) {
+      toast.error("Please select at least one entity value");
+      return;
+    }
+
+    setPage(1);
+    fetchCalls(filters, 1, sortBy);
+  };
 
   const handleReset = async () => {
     // Keep saved org + template intact (because dashboard should remain scoped)
@@ -293,11 +381,11 @@ const handleSearch = () => {
       created_before: "",
       rated_by: "",
       tags: [],
-      entity_key: "",
-      entity_value: "",
+      entity_filters: [],
     };
 
     setFilters(resetFilters);
+    setEntityValueOptions({});
     setSortBy("-attempt_on_time_stamp");
     setPage(1);
     fetchCalls(resetFilters, 1, "-attempt_on_time_stamp");
@@ -477,48 +565,7 @@ const handleSearch = () => {
                 ))}
               </select>
             </div>
-
-            <div className="filter-item">
-              <select
-                value={filters.entity_key}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    entity_key: e.target.value,
-                    entity_value: "", // reset selected value when key changes
-                  }))
-                }
-                disabled={!filters.schema_name?.[0] || !filters.template_id}
-              >
-                <option value="">Select Entity Key</option>
-                {entityKeys.map((key) => (
-                  <option key={key} value={key}>
-                    {key}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="filter-item">
-              <select
-                value={filters.entity_value}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    entity_value: e.target.value,
-                  }))
-                }
-                disabled={!filters.entity_key}
-              >
-                <option value="">Select Entity Value</option>
-                {entityValues.map((val) => (
-                  <option key={val} value={val}>
-                    {val}
-                  </option>
-                ))}
-              </select>
-            </div>
-
+ 
             {role === "lead" && (
               <>
                 <div className="filter-item">
@@ -578,7 +625,70 @@ const handleSearch = () => {
               </div>
             </div>
           </div>
+          
+<div className="entity-inline-section">
+  <div className="entity-inline-header">
+    <button
+      type="button"
+      className="add-entity-btn"
+      onClick={addEntityFilterRow}
+    >
+      + Add Entity Filter
+    </button>
+  </div>
 
+  {(filters.entity_filters || []).length > 0 && (
+    <div className="entity-inline-list">
+      {(filters.entity_filters || []).map((entityFilter, index) => (
+        <div key={index} className="entity-inline-row">
+          {/* Entity Key */}
+          <select
+            className="entity-key-select"
+            value={entityFilter.key}
+            onChange={(e) => handleEntityKeyChange(index, e.target.value)}
+            disabled={!filters.schema_name?.[0] || !filters.template_id}
+          >
+            <option value="">Select Entity Key</option>
+            {entityKeys.map((key) => (
+              <option key={key} value={key}>
+                {key}
+              </option>
+            ))}
+          </select>
+
+          {/* Entity Values (MULTI SELECT) */}
+          <select
+            multiple
+            className="entity-value-multi-select"
+            value={entityFilter.values || []}
+            onChange={(e) =>
+              handleEntityValuesChange(
+                index,
+                Array.from(e.target.selectedOptions, (option) => option.value)
+              )
+            }
+            disabled={!entityFilter.key}
+          >
+            {(entityValueOptions[index] || []).map((val) => (
+              <option key={val} value={val}>
+                {val}
+              </option>
+            ))}
+          </select>
+
+          {/* Remove */}
+          <button
+            type="button"
+            className="remove-entity-btn"
+            onClick={() => removeEntityFilterRow(index)}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+  </div>
           <div className="filter-actions">
             <button className="search-btn" onClick={handleSearch}>
               Search

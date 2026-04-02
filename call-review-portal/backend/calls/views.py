@@ -133,9 +133,8 @@ class DashboardCallView(ListAPIView):
         status_filter = self.request.GET.get("status")
         rated_by = self.request.GET.get("rated_by")
         tags = self.request.GET.get("tags")
-
-        entity_key = self.request.GET.get("entity_key")
-        entity_value = self.request.GET.get("entity_value")
+        entity_filters_raw = self.request.GET.get("entity_filters")
+       
         if status_filter:
             status_values = [int(s) for s in status_filter.split(",") if s.strip().isdigit()]
 
@@ -169,28 +168,74 @@ class DashboardCallView(ListAPIView):
             ).values_list("uuid", flat=True)
             queryset = queryset.filter(uuid__in=list(uuids))
 
-                # ------------------------
-        # ENTITY FILTER (CLICKHOUSE SAFE - Python level filtering)
         # ------------------------
-        if entity_key and entity_value:
-            matched_uuids = []
+        # ENTITY FILTERS (MULTI KEY + MULTI VALUE)
+        # Logic:
+        # - Same key: OR among selected values
+        # - Across keys: AND
+        # ------------------------
+        entity_filters_raw = self.request.GET.get("entity_filters")
 
-            for call in queryset:
-                entities = parse_entities(call.entities)
+        if entity_filters_raw:
+            try:
+                entity_filters = json.loads(entity_filters_raw)
+            except (json.JSONDecodeError, TypeError):
+                entity_filters = []
 
-                if entity_key not in entities:
+            # keep only valid filters
+            valid_entity_filters = []
+            for f in entity_filters:
+                key = f.get("key")
+                values = f.get("values", [])
+
+                if not key:
                     continue
 
-                val = entities.get(entity_key)
+                if not isinstance(values, list):
+                    values = [values] if values else []
 
-                if isinstance(val, list):
-                    if entity_value in [str(v) for v in val]:
-                        matched_uuids.append(call.uuid)
-                else:
-                    if str(val) == entity_value:
+                values = [str(v) for v in values if v not in [None, ""]]
+
+                if values:
+                    valid_entity_filters.append({
+                        "key": key,
+                        "values": values
+                    })
+
+            if valid_entity_filters:
+                matched_uuids = []
+
+                for call in queryset:
+                    entities = parse_entities(call.entities)
+
+                    all_filters_match = True
+
+                    for ef in valid_entity_filters:
+                        key = ef["key"]
+                        selected_values = ef["values"]
+
+                        if key not in entities:
+                            all_filters_match = False
+                            break
+
+                        call_val = entities.get(key)
+
+                        # normalize call values into list of strings
+                        if isinstance(call_val, list):
+                            call_values = [str(v) for v in call_val if v not in [None, ""]]
+                        else:
+                            call_values = [str(call_val)] if call_val not in [None, ""] else []
+
+                        # OR logic within same key
+                        if not any(v in call_values for v in selected_values):
+                            all_filters_match = False
+                            break
+
+                    if all_filters_match:
                         matched_uuids.append(call.uuid)
 
-            queryset = queryset.filter(uuid__in=matched_uuids)
+                queryset = queryset.filter(uuid__in=matched_uuids)
+       
         # ------------------------
         # MANUAL SORTING (CLICKHOUSE SAFE)
         # ------------------------

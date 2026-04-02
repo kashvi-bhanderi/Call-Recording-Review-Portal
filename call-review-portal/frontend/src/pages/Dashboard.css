@@ -5,10 +5,7 @@
   padding: 20px;
   box-sizing: border-box;
 }
-.table-card {
-  overflow-x: auto;
-}
-/* ================= Container ================= */
+
 .dashboard-container {
   width: 100%;
   max-width: 1800px;
@@ -72,7 +69,7 @@
 }
 
 .filter-item {
-  min-width: 0; /* prevents overflow inside grid */
+  min-width: 0;
 }
 
 .filter-item-span-2 {
@@ -119,6 +116,122 @@
   white-space: nowrap;
   font-weight: 500;
   text-align: center;
+}
+
+/* ================= CLEAN INLINE ENTITY FILTERS ================= */
+.entity-inline-section {
+  margin-top: 18px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
+.entity-inline-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.entity-inline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.entity-inline-row {
+  display: flex;
+  align-items: center; /* for multi-select */
+  gap: 12px;
+  flex-wrap: nowrap;
+  width: 100%;
+  overflow-x: auto; /* safe if screen gets tight */
+  padding-bottom: 2px;
+}
+
+.add-entity-btn {
+  background-color: #6fb3be;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.add-entity-btn:hover {
+  background-color: #5fa6b2;
+  transform: translateY(-1px);
+}
+
+.entity-key-select {
+  width: 240px;
+  min-width: 240px;
+  height: 44px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+  box-sizing: border-box;
+  background-color: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
+}
+
+.entity-value-multi-select {
+  width: 320px;
+  min-width: 320px;
+  height: 88px; /* compact but allows multiple visible values */
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+  box-sizing: border-box;
+  background-color: #fff;
+  overflow-y: auto;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
+}
+
+.entity-key-select:focus,
+.entity-value-multi-select:focus {
+  outline: none;
+  border-color: #6fb3be;
+  box-shadow: 0 0 0 3px rgba(111, 179, 190, 0.15);
+}
+
+.entity-value-multi-select option {
+  padding: 4px 8px;
+}
+
+.remove-entity-btn {
+  background-color: #f56565;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  height: 44px;
+  min-width: 44px;
+  width: 44px;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.remove-entity-btn:hover {
+  opacity: 0.95;
+  transform: translateY(-1px);
 }
 
 /* ================= Buttons ================= */
@@ -292,6 +405,16 @@ tbody tr:hover {
   .filter-item-span-2 {
     grid-column: span 2;
   }
+
+  .entity-inline-row {
+    flex-wrap: wrap;
+  }
+
+  .entity-key-select,
+  .entity-value-multi-select {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 @media (max-width: 640px) {
@@ -321,6 +444,22 @@ tbody tr:hover {
 
   .to-text {
     text-align: left;
+  }
+
+  .add-entity-btn {
+    width: 100%;
+  }
+
+  .entity-inline-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .entity-key-select,
+  .entity-value-multi-select,
+  .remove-entity-btn {
+    width: 100%;
+    min-width: 0;
   }
 
   .filter-actions {
