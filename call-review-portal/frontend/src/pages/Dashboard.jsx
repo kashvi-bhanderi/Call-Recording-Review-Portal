@@ -43,7 +43,7 @@ const Dashboard = ({ role }) => {
     created_before: "",
     rated_by: "",
     tags: [],
-    entity_filters: [],
+    entity_filters: [{ key: "", operator: "", value: "" }],
   });
 
   const [audioMap, setAudioMap] = useState({});
@@ -69,15 +69,12 @@ const Dashboard = ({ role }) => {
           schema_name: customFilters.schema_name.join(","),
         }),
         ...(customFilters.entity_filters?.some(
-          (f) => f.key && f.values && f.values.length
+          (f) => f.key && f.operator && f.value !== ""
         ) && {
           entity_filters: JSON.stringify(
-            customFilters.entity_filters
-              .filter((f) => f.key && f.values?.length)
-              .map((f) => ({
-                key: f.key,
-                values: f.values,
-              }))
+            customFilters.entity_filters.filter(
+              (f) => f.key && f.operator && f.value !== ""
+            )
           ),
         }),
         ...(role === "lead" &&
@@ -197,6 +194,7 @@ const Dashboard = ({ role }) => {
       setEntityKeys([]);
     }
   };
+
   /* ================= FETCH ENTITY VALUES ================= */
   const fetchEntityValues = async (schemaName, templateId, entityKey, rowIndex) => {
     if (!schemaName || !templateId || !entityKey) {
@@ -228,6 +226,7 @@ const Dashboard = ({ role }) => {
       }));
     }
   };
+
   /* ================= INITIAL LOAD ================= */
   useEffect(() => {
     const initializeDashboard = async () => {
@@ -265,6 +264,7 @@ const Dashboard = ({ role }) => {
     }
     // eslint-disable-next-line
   }, [page, sortBy]);
+
   /* ================= ENTITY VALUE LOAD ================= */
 
   /* ================= HANDLERS ================= */
@@ -276,14 +276,31 @@ const Dashboard = ({ role }) => {
       [name]: value,
     }));
   };
+
   const addEntityFilterRow = () => {
     setFilters((prev) => ({
       ...prev,
       entity_filters: [
         ...(prev.entity_filters || []),
-        { key: "", values: [] },
+        { key: "", operator: "", value: "" },
       ],
     }));
+  };
+
+  const handleEntityOperatorChange = (index, operator) => {
+    setFilters((prev) => {
+      const updated = [...prev.entity_filters];
+      updated[index].operator = operator;
+      return { ...prev, entity_filters: updated };
+    });
+  };
+
+  const handleEntityValueChange = (index, value) => {
+    setFilters((prev) => {
+      const updated = [...prev.entity_filters];
+      updated[index].value = value;
+      return { ...prev, entity_filters: updated };
+    });
   };
 
   const removeEntityFilterRow = (index) => {
@@ -318,25 +335,17 @@ const Dashboard = ({ role }) => {
     const templateId = filters.template_id;
 
     setFilters((prev) => {
-      const updated = [...(prev.entity_filters || [])];
+      const updated = [...prev.entity_filters];
       updated[index] = {
         key,
-        values: [],
+        operator: "",
+        value: "",
       };
-
-      return {
-        ...prev,
-        entity_filters: updated,
-      };
+      return { ...prev, entity_filters: updated };
     });
 
     if (key) {
       await fetchEntityValues(schemaName, templateId, key, index);
-    } else {
-      setEntityValueOptions((prev) => ({
-        ...prev,
-        [index]: [],
-      }));
     }
   };
 
@@ -354,13 +363,14 @@ const Dashboard = ({ role }) => {
       };
     });
   };
+
   const handleSearch = () => {
     const invalidEntityRow = (filters.entity_filters || []).find(
-      (f) => f.key && (!f.values || f.values.length === 0)
+      (f) => f.key && (!f.operator || f.value === "" || f.value === null)
     );
 
     if (invalidEntityRow) {
-      toast.error("Please select at least one entity value");
+      toast.error("Please complete entity filter (operator + value)");
       return;
     }
 
@@ -565,7 +575,7 @@ const Dashboard = ({ role }) => {
                 ))}
               </select>
             </div>
- 
+
             {role === "lead" && (
               <>
                 <div className="filter-item">
@@ -607,6 +617,7 @@ const Dashboard = ({ role }) => {
                 </div>
               </>
             )}
+
             <div className="filter-item filter-item-span-2">
               <div className="date-range">
                 <input
@@ -625,70 +636,80 @@ const Dashboard = ({ role }) => {
               </div>
             </div>
           </div>
-          
-<div className="entity-inline-section">
-  <div className="entity-inline-header">
-    <button
-      type="button"
-      className="add-entity-btn"
-      onClick={addEntityFilterRow}
-    >
-      + Add Entity Filter
-    </button>
-  </div>
 
-  {(filters.entity_filters || []).length > 0 && (
-    <div className="entity-inline-list">
-      {(filters.entity_filters || []).map((entityFilter, index) => (
-        <div key={index} className="entity-inline-row">
-          {/* Entity Key */}
-          <select
-            className="entity-key-select"
-            value={entityFilter.key}
-            onChange={(e) => handleEntityKeyChange(index, e.target.value)}
-            disabled={!filters.schema_name?.[0] || !filters.template_id}
-          >
-            <option value="">Select Entity Key</option>
-            {entityKeys.map((key) => (
-              <option key={key} value={key}>
-                {key}
-              </option>
-            ))}
-          </select>
+          <div className="entity-inline-section">
+            <div className="entity-inline-header">
+              <button
+                type="button"
+                className="add-entity-btn"
+                onClick={addEntityFilterRow}
+              >
+                + Add Entity Filter
+              </button>
+            </div>
 
-          {/* Entity Values (MULTI SELECT) */}
-          <select
-            multiple
-            className="entity-value-multi-select"
-            value={entityFilter.values || []}
-            onChange={(e) =>
-              handleEntityValuesChange(
-                index,
-                Array.from(e.target.selectedOptions, (option) => option.value)
-              )
-            }
-            disabled={!entityFilter.key}
-          >
-            {(entityValueOptions[index] || []).map((val) => (
-              <option key={val} value={val}>
-                {val}
-              </option>
-            ))}
-          </select>
+            {(filters.entity_filters || []).length > 0 && (
+              <div className="entity-inline-list">
+                {(filters.entity_filters || []).map((entityFilter, index) => (
+                  <div key={index} className="entity-inline-row">
+                    {/* Entity Key */}
+                    <select
+                      className="entity-key-select"
+                      value={entityFilter.key}
+                      onChange={(e) => handleEntityKeyChange(index, e.target.value)}
+                      disabled={!filters.schema_name?.[0] || !filters.template_id}
+                    >
+                      <option value="">Select Entity Key</option>
+                      {entityKeys.map((item) => (
+                        <option key={item.key} value={item.key}>
+                          {item.key}
+                        </option>
+                      ))}
+                    </select>
 
-          {/* Remove */}
-          <button
-            type="button"
-            className="remove-entity-btn"
-            onClick={() => removeEntityFilterRow(index)}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-    </div>
-  )}
-  </div>
+                    {/* Entity Values (MULTI SELECT) */}
+                    {/* Operator */}
+                    <select
+                      className="entity-operator-select"
+                      value={entityFilter.operator}
+                      onChange={(e) =>
+                        handleEntityOperatorChange(index, e.target.value)
+                      }
+                      disabled={!entityFilter.key}
+                    >
+                      <option value="">Select Operator</option>
+                      {(entityKeys.find((k) => k.key === entityFilter.key)?.operators ||
+                        []).map((op) => (
+                        <option key={op.value} value={op.value}>
+                          {op.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Value */}
+                    <input
+                      type="text"
+                      className="entity-value-input"
+                      placeholder="Enter value"
+                      value={entityFilter.value}
+                      onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                      disabled={!entityFilter.operator}
+                    />
+
+                    {/* Remove */}
+                    <button
+                      type="button"
+                      className="remove-entity-btn"
+                      onClick={() => removeEntityFilterRow(index)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="filter-actions">
             <button className="search-btn" onClick={handleSearch}>
               Search
@@ -860,10 +881,7 @@ const Dashboard = ({ role }) => {
             Page {page} of {totalPages}
           </span>
 
-          <button
-            disabled={!nextPageUrl}
-            onClick={() => setPage((prev) => prev + 1)}
-          >
+          <button disabled={!nextPageUrl} onClick={() => setPage((prev) => prev + 1)}>
             Next
           </button>
         </div>

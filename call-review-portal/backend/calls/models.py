@@ -126,3 +126,20 @@ class EvaluationCallRating(models.Model):
 
     def __str__(self):
         return f"{self.call.uuid} - {self.parameter.name}"
+    
+
+class EntityDefinition(models.Model):
+   DATA_TYPES = [
+       ("string", "String"),
+       ("number", "Number"),
+       ("date", "Date"),
+       ("boolean", "Boolean"),
+   ]
+
+
+   key = models.CharField(max_length=255, unique=True)
+   data_type = models.CharField(max_length=50, choices=DATA_TYPES)
+
+
+   def __str__(self):
+       return f"{self.key} ({self.data_type})"

@@ -14,6 +14,8 @@ from .serializers import DashboardCallSerializer, EvaluationCallRatingSerializer
 from .filters import DashboardCallFilter
 from accounts.authentication import CookieJWTAuthentication
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from .models import EntityDefinition
+from .entity_operators import OPERATOR_CONFIG
 from .services import (
     acquire_lock,
     release_lock,
@@ -24,8 +26,8 @@ from rest_framework import status
 from .s3_service import find_audio_file, generate_signed_url
 from django.conf import settings
 import json, ast
-
 import re
+
 
 def parse_entities(raw_entities):
     """
@@ -44,6 +46,8 @@ def parse_entities(raw_entities):
         return {k: v for k, v in pairs}
 
     return {}
+
+
 # ------------------------
 # CONSULTANT SUBMIT
 # ------------------------
@@ -82,7 +86,12 @@ class SubmitCallReviewAPIView(APIView):
             try:
                 call = serializer.create_or_update_ratings(user=request.user)
             except DRFValidationError as e:
-                return Response({"error": str(e.detail[0]) if isinstance(e.detail, list) else str(e.detail)}, status=403)
+                return Response(
+                    {
+                        "error": str(e.detail[0]) if isinstance(e.detail, list) else str(e.detail)
+                    },
+                    status=403
+                )
 
             return Response({
                 "message": "Review submitted successfully",
@@ -91,6 +100,7 @@ class SubmitCallReviewAPIView(APIView):
             })
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 # ------------------------
 # DASHBOARD LIST
@@ -120,7 +130,6 @@ class DashboardCallView(ListAPIView):
         # ------------------------
         # ORGANIZATION ACCESS FILTER
         # ------------------------
-
         if not user.is_superuser:
             allowed_schemas = list(
                 user.accessible_organizations.values_list("schema_name", flat=True)
@@ -134,7 +143,7 @@ class DashboardCallView(ListAPIView):
         rated_by = self.request.GET.get("rated_by")
         tags = self.request.GET.get("tags")
         entity_filters_raw = self.request.GET.get("entity_filters")
-       
+
         if status_filter:
             status_values = [int(s) for s in status_filter.split(",") if s.strip().isdigit()]
 
@@ -174,68 +183,63 @@ class DashboardCallView(ListAPIView):
         # - Same key: OR among selected values
         # - Across keys: AND
         # ------------------------
-        entity_filters_raw = self.request.GET.get("entity_filters")
-
         if entity_filters_raw:
             try:
                 entity_filters = json.loads(entity_filters_raw)
             except (json.JSONDecodeError, TypeError):
                 entity_filters = []
 
-            # keep only valid filters
-            valid_entity_filters = []
-            for f in entity_filters:
-                key = f.get("key")
-                values = f.get("values", [])
+            matched_uuids = []
 
-                if not key:
-                    continue
+            for call in queryset:
+                entities = parse_entities(call.entities)
 
-                if not isinstance(values, list):
-                    values = [values] if values else []
+                is_match = True
 
-                values = [str(v) for v in values if v not in [None, ""]]
+                for f in entity_filters:
+                    key = f.get("key")
+                    operator = f.get("operator")
+                    value = f.get("value")
 
-                if values:
-                    valid_entity_filters.append({
-                        "key": key,
-                        "values": values
-                    })
+                    if key not in entities:
+                        is_match = False
+                        break
 
-            if valid_entity_filters:
-                matched_uuids = []
+                    call_val = entities.get(key)
 
-                for call in queryset:
-                    entities = parse_entities(call.entities)
+                    try:
+                        # Apply operator
+                        if operator == "eq":
+                            if str(call_val) != str(value):
+                                is_match = False
 
-                    all_filters_match = True
+                        elif operator == "contains":
+                            if str(value).lower() not in str(call_val).lower():
+                                is_match = False
 
-                    for ef in valid_entity_filters:
-                        key = ef["key"]
-                        selected_values = ef["values"]
+                        elif operator == "startswith":
+                            if not str(call_val).lower().startswith(str(value).lower()):
+                                is_match = False
 
-                        if key not in entities:
-                            all_filters_match = False
-                            break
+                        elif operator == "gt":
+                            if float(call_val) <= float(value):
+                                is_match = False
 
-                        call_val = entities.get(key)
+                        elif operator == "lt":
+                            if float(call_val) >= float(value):
+                                is_match = False
 
-                        # normalize call values into list of strings
-                        if isinstance(call_val, list):
-                            call_values = [str(v) for v in call_val if v not in [None, ""]]
-                        else:
-                            call_values = [str(call_val)] if call_val not in [None, ""] else []
+                    except Exception:
+                        is_match = False
 
-                        # OR logic within same key
-                        if not any(v in call_values for v in selected_values):
-                            all_filters_match = False
-                            break
+                    if not is_match:
+                        break
 
-                    if all_filters_match:
-                        matched_uuids.append(call.uuid)
+                if is_match:
+                    matched_uuids.append(call.uuid)
 
-                queryset = queryset.filter(uuid__in=matched_uuids)
-       
+            queryset = queryset.filter(uuid__in=matched_uuids)
+
         # ------------------------
         # MANUAL SORTING (CLICKHOUSE SAFE)
         # ------------------------
@@ -275,6 +279,7 @@ class DashboardCallView(ListAPIView):
 
         return context
 
+
 class CallFilterOptionsView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [CookieJWTAuthentication]
@@ -307,6 +312,7 @@ class CallFilterOptionsView(APIView):
                 })
 
             ch_queryset = ch_queryset.filter(language__in=allowed_languages)
+
         # --------------------
         # ORGANIZATION ACCESS FILTER (SAME AS DASHBOARD)
         # --------------------
@@ -403,6 +409,8 @@ class CallFilterOptionsView(APIView):
             "rated_by": list(rated_by),
             "tags": list(tags),
         })
+
+
 # ------------------------
 # CONSULTANT CALL DETAIL
 # ------------------------
@@ -487,7 +495,6 @@ class ConsultantCallDetailAPIView(APIView):
         ).first()
         org_name = org_obj.org_name if org_obj else ch_call.schema_name
 
-
         data = {
             "metadata": {
                 "schema_name": ch_call.schema_name,
@@ -526,6 +533,8 @@ class ConsultantCallDetailAPIView(APIView):
         }
 
         return Response(data)
+
+
 # ------------------------
 # LEAD CALL DETAIL
 # ------------------------
@@ -596,7 +605,6 @@ class LeadCallDetailAPIView(APIView):
                 "min": r.parameter.min_value,
                 "max": r.parameter.max_value,
             })
-
 
         # ------------------------
         # LEAD RATINGS
@@ -749,6 +757,8 @@ class LeadSubmitReviewAPIView(APIView):
 
         except Call.DoesNotExist:
             return Response({"error": "Call not found"}, status=404)
+
+
 # ------------------------
 # AUDIO API
 # ------------------------
@@ -800,6 +810,7 @@ class CallAudioAPIView(APIView):
             "audio_key": audio_key,   # useful for testing, remove later in production
             "expires_in": 300
         })
+
 
 # ------------------------
 # SELECTABLE ORGANIZATIONS
@@ -866,6 +877,7 @@ class SelectableOrganizationsAPIView(APIView):
             "organizations": list(organizations)
         })
 
+
 # ------------------------
 # SELECTABLE TEMPLATES
 # ------------------------
@@ -919,7 +931,8 @@ class SelectableTemplatesAPIView(APIView):
         return Response({
             "templates": [{"template_id": t} for t in sorted(template_ids)]
         })
-    
+
+
 # ------------------------
 # SELECTABLE ENTITIES
 # ------------------------
@@ -979,9 +992,32 @@ class SelectableEntitiesAPIView(APIView):
             entities = parse_entities(call.entities)
             entity_keys.update(entities.keys())
 
+        # ------------------------
+        # ADD DATATYPE + OPERATORS
+        # ------------------------
+        from .models import EntityDefinition
+        from .entity_operators import OPERATOR_CONFIG
+
+        entities_data = []
+
+        for key in sorted(list(entity_keys)):
+            entity_def = EntityDefinition.objects.filter(key=key).first()
+
+            data_type = entity_def.data_type if entity_def else "string"
+
+            operators = OPERATOR_CONFIG.get(data_type, [])
+
+            entities_data.append({
+                "key": key,
+                "data_type": data_type,
+                "operators": operators
+            })
+
         return Response({
-            "entities": sorted(list(entity_keys))
+            "entities": entities_data
         })
+
+
 # ------------------------
 # SELECTABLE ENTITY VALUES
 # ------------------------
