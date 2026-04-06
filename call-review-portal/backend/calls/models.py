@@ -134,6 +134,7 @@ class EntityDefinition(models.Model):
        ("number", "Number"),
        ("date", "Date"),
        ("boolean", "Boolean"),
+       ("time", "Time"),
    ]
 
 

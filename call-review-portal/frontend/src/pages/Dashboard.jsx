@@ -680,21 +680,92 @@ const Dashboard = ({ role }) => {
                       <option value="">Select Operator</option>
                       {(entityKeys.find((k) => k.key === entityFilter.key)?.operators ||
                         []).map((op) => (
-                        <option key={op.value} value={op.value}>
-                          {op.label}
-                        </option>
-                      ))}
+                          <option key={op.value} value={op.value}>
+                            {op.label}
+                          </option>
+                        ))}
                     </select>
 
                     {/* Value */}
-                    <input
-                      type="text"
-                      className="entity-value-input"
-                      placeholder="Enter value"
-                      value={entityFilter.value}
-                      onChange={(e) => handleEntityValueChange(index, e.target.value)}
-                      disabled={!entityFilter.operator}
-                    />
+                    {(() => {
+                      const selectedEntity = entityKeys.find((k) => k.key === entityFilter.key);
+                      const dataType = selectedEntity?.data_type || "string";
+
+                      if (dataType === "date") {
+                        return (
+                          <input
+                            type="date"
+                            className="entity-value-input"
+                            value={entityFilter.value || ""}
+                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            disabled={!entityFilter.operator}
+                          />
+                        );
+                      }
+
+                      if (dataType === "time") {
+                        return (
+                          <input
+                            type="time"
+                            className="entity-value-input"
+                            value={entityFilter.value || ""}
+                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            disabled={!entityFilter.operator}
+                          />
+                        );
+                      }
+
+                      if (dataType === "datetime") {
+                        return (
+                          <input
+                            type="datetime-local"
+                            className="entity-value-input"
+                            value={entityFilter.value || ""}
+                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            disabled={!entityFilter.operator}
+                          />
+                        );
+                      }
+
+                      if (dataType === "boolean") {
+                        return (
+                          <select
+                            className="entity-value-input"
+                            value={entityFilter.value ?? ""}
+                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            disabled={!entityFilter.operator}
+                          >
+                            <option value="">Select Value</option>
+                            <option value="true">True</option>
+                            <option value="false">False</option>
+                          </select>
+                        );
+                      }
+
+                      if (dataType === "number") {
+                        return (
+                          <input
+                            type="number"
+                            className="entity-value-input"
+                            placeholder="Enter number"
+                            value={entityFilter.value || ""}
+                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            disabled={!entityFilter.operator}
+                          />
+                        );
+                      }
+
+                      return (
+                        <input
+                          type="text"
+                          className="entity-value-input"
+                          placeholder="Enter value"
+                          value={entityFilter.value || ""}
+                          onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                          disabled={!entityFilter.operator}
+                        />
+                      );
+                    })()}
 
                     {/* Remove */}
                     <button

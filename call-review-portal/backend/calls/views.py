@@ -28,6 +28,107 @@ from django.conf import settings
 import json, ast
 import re
 
+from datetime import datetime, date, time
+
+
+def normalize_bool(value):
+    """
+    Convert common truthy/falsey values into Python bool.
+    """
+    if isinstance(value, bool):
+        return value
+
+    if value is None:
+        raise ValueError("Boolean value cannot be None")
+
+    val = str(value).strip().lower()
+
+    if val in ["true", "1", "yes", "y"]:
+        return True
+    if val in ["false", "0", "no", "n"]:
+        return False
+
+    raise ValueError(f"Invalid boolean value: {value}")
+
+
+def parse_value_by_type(value, data_type):
+    """
+    Convert raw entity/filter value to proper Python type
+    based on EntityDefinition.data_type.
+    Supported types:
+    string, number, date, datetime, time, boolean
+    """
+    if value is None:
+        return None
+
+    if data_type == "string":
+        return str(value)
+
+    if data_type == "number":
+        return float(value)
+
+    if data_type == "boolean":
+        return normalize_bool(value)
+
+    if data_type == "date":
+        # Expected format: YYYY-MM-DD
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        return datetime.strptime(str(value), "%Y-%m-%d").date()
+
+    if data_type == "datetime":
+        # Supports ISO format: YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD HH:MM:SS
+        val = str(value).replace("Z", "+00:00")
+        return datetime.fromisoformat(val)
+
+    if data_type == "time":
+        # Expected format: HH:MM[:SS]
+        val = str(value)
+        try:
+            return datetime.strptime(val, "%H:%M:%S").time()
+        except ValueError:
+            return datetime.strptime(val, "%H:%M").time()
+
+    # Fallback
+    return str(value)
+
+
+def apply_operator(call_val, filter_val, operator, data_type):
+    """
+    Apply operator based on datatype.
+    """
+    # Normalize strings for case-insensitive comparisons where applicable
+    if data_type == "string":
+        call_str = str(call_val)
+        filter_str = str(filter_val)
+
+        if operator == "eq":
+            return call_str.lower() == filter_str.lower()
+        elif operator == "contains":
+            return filter_str.lower() in call_str.lower()
+        elif operator == "startswith":
+            return call_str.lower().startswith(filter_str.lower())
+        return False
+
+    if data_type in ["number", "date", "datetime", "time"]:
+        if operator == "eq":
+            return call_val == filter_val
+        elif operator == "gt":
+            return call_val > filter_val
+        elif operator == "lt":
+            return call_val < filter_val
+        return False
+
+    if data_type == "boolean":
+        if operator == "eq":
+            return call_val == filter_val
+        return False
+
+    # Fallback generic
+    if operator == "eq":
+        return str(call_val) == str(filter_val)
+
+    return False
 
 def parse_entities(raw_entities):
     """
@@ -189,11 +290,17 @@ class DashboardCallView(ListAPIView):
             except (json.JSONDecodeError, TypeError):
                 entity_filters = []
 
+            # Cache entity definitions once
+            entity_keys = [f.get("key") for f in entity_filters if f.get("key")]
+            entity_defs = {
+                e.key: e.data_type
+                for e in EntityDefinition.objects.filter(key__in=entity_keys)
+            }
+
             matched_uuids = []
 
             for call in queryset:
                 entities = parse_entities(call.entities)
-
                 is_match = True
 
                 for f in entity_filters:
@@ -201,45 +308,41 @@ class DashboardCallView(ListAPIView):
                     operator = f.get("operator")
                     value = f.get("value")
 
+                    if not key or not operator:
+                        is_match = False
+                        break
+
                     if key not in entities:
                         is_match = False
                         break
 
-                    call_val = entities.get(key)
+                    raw_call_val = entities.get(key)
+
+                    # Default to string if no definition found
+                    data_type = entity_defs.get(key, "string")
+
+                    # Validate operator is allowed for datatype
+                    allowed_ops = [op["value"] for op in OPERATOR_CONFIG.get(data_type, [])]
+                    if operator not in allowed_ops:
+                        is_match = False
+                        break
 
                     try:
-                        # Apply operator
-                        if operator == "eq":
-                            if str(call_val) != str(value):
-                                is_match = False
+                        call_val = parse_value_by_type(raw_call_val, data_type)
+                        filter_val = parse_value_by_type(value, data_type)
 
-                        elif operator == "contains":
-                            if str(value).lower() not in str(call_val).lower():
-                                is_match = False
-
-                        elif operator == "startswith":
-                            if not str(call_val).lower().startswith(str(value).lower()):
-                                is_match = False
-
-                        elif operator == "gt":
-                            if float(call_val) <= float(value):
-                                is_match = False
-
-                        elif operator == "lt":
-                            if float(call_val) >= float(value):
-                                is_match = False
+                        if not apply_operator(call_val, filter_val, operator, data_type):
+                            is_match = False
+                            break
 
                     except Exception:
                         is_match = False
-
-                    if not is_match:
                         break
 
                 if is_match:
                     matched_uuids.append(call.uuid)
 
             queryset = queryset.filter(uuid__in=matched_uuids)
-
         # ------------------------
         # MANUAL SORTING (CLICKHOUSE SAFE)
         # ------------------------
@@ -1078,6 +1181,9 @@ class SelectableEntityValuesAPIView(APIView):
                 template_id=template_id
             )
 
+        entity_def = EntityDefinition.objects.filter(key=entity_key).first()
+        data_type = entity_def.data_type if entity_def else "string"
+
         values = set()
 
         for call in ch_queryset.only("entities"):
@@ -1089,13 +1195,39 @@ class SelectableEntityValuesAPIView(APIView):
             val = entities.get(entity_key)
 
             if isinstance(val, list):
-                for v in val:
-                    if v not in [None, ""]:
-                        values.add(str(v))
-            elif val not in [None, ""]:
-                values.add(str(val))
+                raw_values = val
+            else:
+                raw_values = [val]
+
+            for v in raw_values:
+                if v in [None, ""]:
+                    continue
+
+                try:
+                    parsed_val = parse_value_by_type(v, data_type)
+
+                    # Normalize response-safe format
+                    if data_type == "boolean":
+                        values.add(parsed_val)
+                    elif data_type in ["number"]:
+                        values.add(parsed_val)
+                    elif data_type == "date":
+                        values.add(parsed_val.isoformat())
+                    elif data_type == "datetime":
+                        values.add(parsed_val.isoformat())
+                    elif data_type == "time":
+                        values.add(parsed_val.isoformat())
+                    else:
+                        values.add(str(parsed_val))
+
+                except Exception:
+                    values.add(str(v))
+
+        # Safe sorting for mixed types
+        sorted_values = sorted(values, key=lambda x: str(x).lower())
 
         return Response({
             "entity_key": entity_key,
-            "values": sorted(list(values))
+            "data_type": data_type,
+            "values": sorted_values
         })

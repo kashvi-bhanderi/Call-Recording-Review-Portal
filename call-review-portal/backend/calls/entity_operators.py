@@ -14,6 +14,11 @@ OPERATOR_CONFIG = {
         {"label": "After", "value": "gt"},
         {"label": "Before", "value": "lt"},
     ],
+    "time": [
+        {"label": "Equals", "value": "eq"},
+        {"label": "After", "value": "gt"},
+        {"label": "Before", "value": "lt"},
+    ],
     "boolean": [
         {"label": "Is", "value": "eq"},
     ],
