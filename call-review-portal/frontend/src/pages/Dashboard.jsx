@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import "./Dashboard.css";
 import DashboardHeader from "../components/DashboardHeader";
@@ -9,21 +9,28 @@ import toast from "react-hot-toast";
 
 const Dashboard = ({ role }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const savedOrg = localStorage.getItem("selectedOrg") || "";
   const savedTemplate = localStorage.getItem("selectedTemplate") || "";
 
+  const PAGE_SIZE = 8;
+  const DEFAULT_SORT = "-attempt_on_time_stamp";
+
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
+
+  const [page, setPage] = useState(
+    Number(searchParams.get("page")) > 0 ? Number(searchParams.get("page")) : 1
+  );
   const [totalPages, setTotalPages] = useState(1);
-  const [sortBy, setSortBy] = useState("-attempt_on_time_stamp");
+  const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || DEFAULT_SORT);
 
   const [nextPageUrl, setNextPageUrl] = useState(null);
   const [prevPageUrl, setPrevPageUrl] = useState(null);
   const [entityKeys, setEntityKeys] = useState([]);
   const [entityValueOptions, setEntityValueOptions] = useState({});
-  const PAGE_SIZE = 8;
 
   const [filterOptions, setFilterOptions] = useState({
     languages: [],
@@ -43,12 +50,104 @@ const Dashboard = ({ role }) => {
     created_before: "",
     rated_by: "",
     tags: [],
-    entity_filters: [{ key: "", operator: "", value: "" }],
+    entity_filters: [],
   });
 
   const [audioMap, setAudioMap] = useState({});
   const [rowData, setRowData] = useState({});
   const [submittingMap, setSubmittingMap] = useState({});
+
+  /* ================= URL HELPERS ================= */
+  const buildSearchParamsFromState = (filtersData, pageData, sortData) => {
+    const params = new URLSearchParams();
+
+    if (pageData && pageData !== 1) params.set("page", String(pageData));
+    if (sortData && sortData !== DEFAULT_SORT) params.set("sortBy", sortData);
+
+    if (filtersData.template_id) params.set("template_id", filtersData.template_id);
+    if (filtersData.phone_number) params.set("phone_number", filtersData.phone_number);
+    if (filtersData.uuid) params.set("uuid", filtersData.uuid);
+
+    if (filtersData.language?.length) {
+      params.set("language", filtersData.language.join(","));
+    }
+
+    if (filtersData.schema_name?.length) {
+      params.set("schema_name", filtersData.schema_name.join(","));
+    }
+
+    if (filtersData.status?.length) {
+      params.set("status", filtersData.status.join(","));
+    }
+
+    if (filtersData.created_after) {
+      params.set("created_after", filtersData.created_after);
+    }
+
+    if (filtersData.created_before) {
+      params.set("created_before", filtersData.created_before);
+    }
+
+    if (filtersData.rated_by) {
+      params.set("rated_by", filtersData.rated_by);
+    }
+
+    if (filtersData.tags?.length) {
+      params.set("tags", filtersData.tags.join(","));
+    }
+
+    const validEntityFilters = (filtersData.entity_filters || []).filter(
+      (f) => f.key && f.operator && f.value !== "" && f.value !== null
+    );
+
+    if (validEntityFilters.length) {
+      params.set("entity_filters", JSON.stringify(validEntityFilters));
+    }
+
+    return params;
+  };
+
+  const parseFiltersFromSearchParams = () => {
+    let parsedEntityFilters = [];
+    const rawEntityFilters = searchParams.get("entity_filters");
+
+    if (rawEntityFilters) {
+      try {
+        parsedEntityFilters = JSON.parse(rawEntityFilters);
+      } catch (e) {
+        parsedEntityFilters = [];
+      }
+    }
+
+    return {
+      template_id: searchParams.get("template_id") || savedTemplate,
+      phone_number: searchParams.get("phone_number") || "",
+      uuid: searchParams.get("uuid") || "",
+      language: searchParams.get("language")
+        ? searchParams.get("language").split(",").filter(Boolean)
+        : [],
+      schema_name: searchParams.get("schema_name")
+        ? searchParams.get("schema_name").split(",").filter(Boolean)
+        : savedOrg
+        ? [savedOrg]
+        : [],
+      status: searchParams.get("status")
+        ? searchParams.get("status").split(",").filter(Boolean)
+        : [],
+      created_after: searchParams.get("created_after") || "",
+      created_before: searchParams.get("created_before") || "",
+      rated_by: searchParams.get("rated_by") || "",
+      tags: searchParams.get("tags")
+        ? searchParams.get("tags").split(",").filter(Boolean)
+        : [],
+      entity_filters: parsedEntityFilters,
+    };
+  };
+
+  const syncUrl = (filtersData, pageData, sortData) => {
+    const params = buildSearchParamsFromState(filtersData, pageData, sortData);
+    setSearchParams(params);
+  };
 
   /* ================= FETCH CALLS ================= */
   const fetchCalls = async (
@@ -63,7 +162,6 @@ const Dashboard = ({ role }) => {
         page: customPage,
         ordering: customSortBy,
 
-        // Always apply saved org + template silently from localStorage-based filters
         ...(customFilters.template_id && { template_id: customFilters.template_id }),
         ...(customFilters.schema_name.length && {
           schema_name: customFilters.schema_name.join(","),
@@ -232,40 +330,38 @@ const Dashboard = ({ role }) => {
     const initializeDashboard = async () => {
       await fetchFilterOptions();
 
-      const initialFilters = {
-        template_id: savedTemplate,
-        phone_number: "",
-        uuid: "",
-        language: [],
-        schema_name: savedOrg ? [savedOrg] : [],
-        status: [],
-        created_after: "",
-        created_before: "",
-        rated_by: "",
-        tags: [],
-        entity_filters: [],
-      };
+      const initialFilters = parseFiltersFromSearchParams();
+      const initialPage =
+        Number(searchParams.get("page")) > 0 ? Number(searchParams.get("page")) : 1;
+      const initialSort = searchParams.get("sortBy") || DEFAULT_SORT;
 
       setFilters(initialFilters);
-      if (savedOrg && savedTemplate) {
-        await fetchEntityKeys(savedOrg, savedTemplate);
+      setPage(initialPage);
+      setSortBy(initialSort);
+
+      if (initialFilters.schema_name?.[0] && initialFilters.template_id) {
+        await fetchEntityKeys(initialFilters.schema_name[0], initialFilters.template_id);
+
+        await Promise.all(
+          (initialFilters.entity_filters || []).map(async (ef, index) => {
+            if (ef.key) {
+              await fetchEntityValues(
+                initialFilters.schema_name[0],
+                initialFilters.template_id,
+                ef.key,
+                index
+              );
+            }
+          })
+        );
       }
-      fetchCalls(initialFilters, 1, sortBy);
+
+      fetchCalls(initialFilters, initialPage, initialSort);
     };
 
     initializeDashboard();
     // eslint-disable-next-line
   }, []);
-
-  /* ================= PAGE / SORT CHANGES ================= */
-  useEffect(() => {
-    if (page !== 1 || sortBy !== "-attempt_on_time_stamp") {
-      fetchCalls(filters, page, sortBy);
-    }
-    // eslint-disable-next-line
-  }, [page, sortBy]);
-
-  /* ================= ENTITY VALUE LOAD ================= */
 
   /* ================= HANDLERS ================= */
   const handleChange = (e) => {
@@ -318,7 +414,6 @@ const Dashboard = ({ role }) => {
       const updated = { ...prev };
       delete updated[index];
 
-      // reindex after deletion
       const reindexed = {};
       Object.keys(updated).forEach((k) => {
         const oldIndex = Number(k);
@@ -335,7 +430,7 @@ const Dashboard = ({ role }) => {
     const templateId = filters.template_id;
 
     setFilters((prev) => {
-      const updated = [...prev.entity_filters];
+      const updated = [...(prev.entity_filters || [])];
       updated[index] = {
         key,
         operator: "",
@@ -349,21 +444,6 @@ const Dashboard = ({ role }) => {
     }
   };
 
-  const handleEntityValuesChange = (index, values) => {
-    setFilters((prev) => {
-      const updated = [...(prev.entity_filters || [])];
-      updated[index] = {
-        ...updated[index],
-        values,
-      };
-
-      return {
-        ...prev,
-        entity_filters: updated,
-      };
-    });
-  };
-
   const handleSearch = () => {
     const invalidEntityRow = (filters.entity_filters || []).find(
       (f) => f.key && (!f.operator || f.value === "" || f.value === null)
@@ -374,12 +454,14 @@ const Dashboard = ({ role }) => {
       return;
     }
 
-    setPage(1);
-    fetchCalls(filters, 1, sortBy);
+    const newPage = 1;
+    setPage(newPage);
+
+    syncUrl(filters, newPage, sortBy);
+    fetchCalls(filters, newPage, sortBy);
   };
 
   const handleReset = async () => {
-    // Keep saved org + template intact (because dashboard should remain scoped)
     const resetFilters = {
       template_id: savedTemplate,
       phone_number: "",
@@ -396,9 +478,46 @@ const Dashboard = ({ role }) => {
 
     setFilters(resetFilters);
     setEntityValueOptions({});
-    setSortBy("-attempt_on_time_stamp");
+    setSortBy(DEFAULT_SORT);
     setPage(1);
-    fetchCalls(resetFilters, 1, "-attempt_on_time_stamp");
+
+    if (savedOrg && savedTemplate) {
+      await fetchEntityKeys(savedOrg, savedTemplate);
+    } else {
+      setEntityKeys([]);
+    }
+
+    syncUrl(resetFilters, 1, DEFAULT_SORT);
+    fetchCalls(resetFilters, 1, DEFAULT_SORT);
+  };
+
+  const handleSortChange = (value) => {
+    const newPage = 1;
+    setSortBy(value);
+    setPage(newPage);
+
+    syncUrl(filters, newPage, value);
+    fetchCalls(filters, newPage, value);
+  };
+
+  const handlePreviousPage = () => {
+    if (!prevPageUrl || page <= 1) return;
+
+    const newPage = page - 1;
+    setPage(newPage);
+
+    syncUrl(filters, newPage, sortBy);
+    fetchCalls(filters, newPage, sortBy);
+  };
+
+  const handleNextPage = () => {
+    if (!nextPageUrl) return;
+
+    const newPage = page + 1;
+    setPage(newPage);
+
+    syncUrl(filters, newPage, sortBy);
+    fetchCalls(filters, newPage, sortBy);
   };
 
   /* ================= CONSULTANT INLINE RATING ================= */
@@ -526,10 +645,7 @@ const Dashboard = ({ role }) => {
             <div className="filter-item">
               <select
                 value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => handleSortChange(e.target.value)}
               >
                 <option value="-attempt_on_time_stamp">Latest First</option>
                 <option value="attempt_on_time_stamp">Oldest First</option>
@@ -652,7 +768,6 @@ const Dashboard = ({ role }) => {
               <div className="entity-inline-list">
                 {(filters.entity_filters || []).map((entityFilter, index) => (
                   <div key={index} className="entity-inline-row">
-                    {/* Entity Key */}
                     <select
                       className="entity-key-select"
                       value={entityFilter.key}
@@ -667,8 +782,6 @@ const Dashboard = ({ role }) => {
                       ))}
                     </select>
 
-                    {/* Entity Values (MULTI SELECT) */}
-                    {/* Operator */}
                     <select
                       className="entity-operator-select"
                       value={entityFilter.operator}
@@ -686,9 +799,10 @@ const Dashboard = ({ role }) => {
                         ))}
                     </select>
 
-                    {/* Value */}
                     {(() => {
-                      const selectedEntity = entityKeys.find((k) => k.key === entityFilter.key);
+                      const selectedEntity = entityKeys.find(
+                        (k) => k.key === entityFilter.key
+                      );
                       const dataType = selectedEntity?.data_type || "string";
 
                       if (dataType === "date") {
@@ -697,7 +811,9 @@ const Dashboard = ({ role }) => {
                             type="date"
                             className="entity-value-input"
                             value={entityFilter.value || ""}
-                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            onChange={(e) =>
+                              handleEntityValueChange(index, e.target.value)
+                            }
                             disabled={!entityFilter.operator}
                           />
                         );
@@ -709,7 +825,9 @@ const Dashboard = ({ role }) => {
                             type="time"
                             className="entity-value-input"
                             value={entityFilter.value || ""}
-                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            onChange={(e) =>
+                              handleEntityValueChange(index, e.target.value)
+                            }
                             disabled={!entityFilter.operator}
                           />
                         );
@@ -721,7 +839,9 @@ const Dashboard = ({ role }) => {
                             type="datetime-local"
                             className="entity-value-input"
                             value={entityFilter.value || ""}
-                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            onChange={(e) =>
+                              handleEntityValueChange(index, e.target.value)
+                            }
                             disabled={!entityFilter.operator}
                           />
                         );
@@ -732,7 +852,9 @@ const Dashboard = ({ role }) => {
                           <select
                             className="entity-value-input"
                             value={entityFilter.value ?? ""}
-                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            onChange={(e) =>
+                              handleEntityValueChange(index, e.target.value)
+                            }
                             disabled={!entityFilter.operator}
                           >
                             <option value="">Select Value</option>
@@ -749,7 +871,9 @@ const Dashboard = ({ role }) => {
                             className="entity-value-input"
                             placeholder="Enter number"
                             value={entityFilter.value || ""}
-                            onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                            onChange={(e) =>
+                              handleEntityValueChange(index, e.target.value)
+                            }
                             disabled={!entityFilter.operator}
                           />
                         );
@@ -761,13 +885,14 @@ const Dashboard = ({ role }) => {
                           className="entity-value-input"
                           placeholder="Enter value"
                           value={entityFilter.value || ""}
-                          onChange={(e) => handleEntityValueChange(index, e.target.value)}
+                          onChange={(e) =>
+                            handleEntityValueChange(index, e.target.value)
+                          }
                           disabled={!entityFilter.operator}
                         />
                       );
                     })()}
 
-                    {/* Remove */}
                     <button
                       type="button"
                       className="remove-entity-btn"
@@ -920,11 +1045,16 @@ const Dashboard = ({ role }) => {
                           className="view-btn"
                           onClick={() => {
                             const currentRole = localStorage.getItem("role");
+                            const currentDashboardPath = `${location.pathname}${location.search}`;
 
                             if (currentRole === "consultant") {
-                              navigate(`/consultant/review/${call.uuid}`);
+                              navigate(`/consultant/review/${call.uuid}`, {
+                                state: { from: currentDashboardPath },
+                              });
                             } else if (currentRole === "lead") {
-                              navigate(`/lead/review/${call.uuid}`);
+                              navigate(`/lead/review/${call.uuid}`, {
+                                state: { from: currentDashboardPath },
+                              });
                             }
                           }}
                         >
@@ -941,10 +1071,7 @@ const Dashboard = ({ role }) => {
 
         {/* Pagination */}
         <div className="pagination">
-          <button
-            disabled={!prevPageUrl || page <= 1}
-            onClick={() => setPage((prev) => prev - 1)}
-          >
+          <button disabled={!prevPageUrl || page <= 1} onClick={handlePreviousPage}>
             Previous
           </button>
 
@@ -952,7 +1079,7 @@ const Dashboard = ({ role }) => {
             Page {page} of {totalPages}
           </span>
 
-          <button disabled={!nextPageUrl} onClick={() => setPage((prev) => prev + 1)}>
+          <button disabled={!nextPageUrl} onClick={handleNextPage}>
             Next
           </button>
         </div>

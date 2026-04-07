@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import React, { useEffect, useState, useCallback } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import AudioPlayer from "../components/AudioPlayer";
 import DashboardHeader from "../components/DashboardHeader";
@@ -9,6 +9,8 @@ import toast from "react-hot-toast";
 
 const CallReview = () => {
   const { uuid } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [metadata, setMetadata] = useState({});
   const [metrics, setMetrics] = useState([]);
@@ -22,12 +24,11 @@ const CallReview = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditable, setIsEditable] = useState(true);
   const [lockMessage, setLockMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchCall();
-  }, [uuid]);
+  const fetchCall = useCallback(async () => {
+    setLoading(true);
 
-  const fetchCall = async () => {
     try {
       const detailRes = await axiosInstance.get(`/calls/detail/${uuid}/`);
       const data = detailRes.data;
@@ -72,8 +73,14 @@ const CallReview = () => {
     } catch (err) {
       console.error("Call detail fetch failed:", err);
       toast.error("Failed to load call details");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [uuid]);
+
+  useEffect(() => {
+    fetchCall();
+  }, [fetchCall]);
 
   const handleRatingChange = (name, value) => {
     setMetrics((prev) =>
@@ -81,11 +88,16 @@ const CallReview = () => {
     );
   };
 
+  const allMetricsFilled =
+    metrics.length > 0 &&
+    metrics.every((m) => m.value !== null && m.value !== "");
+
   const submitReview = async () => {
-     if (!allMetricsFilled) {
-    toast.error("Please rate all fields before submitting.");
-    return;
-  }
+    if (!allMetricsFilled) {
+      toast.error("Please rate all fields before submitting.");
+      return;
+    }
+
     try {
       const ratings = {};
 
@@ -101,7 +113,9 @@ const CallReview = () => {
         comments,
       });
 
-      toast.success(isEditing ? "Review updated successfully" : "Review submitted successfully");
+      toast.success(
+        isEditing ? "Review updated successfully" : "Review submitted successfully"
+      );
 
       setIsSubmitted(true);
       setIsEditing(false);
@@ -115,176 +129,225 @@ const CallReview = () => {
     }
   };
 
-const disableInputs = !isEditable || (isSubmitted && !isEditing);
+  const handleBackToDashboard = () => {
+    // Best UX: if user came from dashboard, go back in history
+    if (location.state?.fromDashboard) {
+      navigate(-1);
+      return;
+    }
 
-const allMetricsFilled =
-  metrics.length > 0 &&
-  metrics.every((m) => m.value !== null && m.value !== "");
+    // fallback for direct open / refresh
+    navigate("/consultant/dashboard");
+  };
+
+  const disableInputs = !isEditable || (isSubmitted && !isEditing);
 
   return (
     <div className="review-page">
       <div className="review-container">
         <DashboardHeader title="Consultant Dashboard" />
 
-        {audioUrl ? (
-          <AudioPlayer audioUrl={audioUrl} />
+        {loading ? (
+          <p>Loading call details...</p>
         ) : (
-          <div className="audio-unavailable">Audio not available</div>
-        )}
-
-        <div className="review-body">
-          <div className="metadata">
-            <h3>Call Metadata</h3>
-            <p><b>Organization:</b> {metadata.org_name || metadata.schema_name || "-"}</p>
-            <p><b>Language:</b> {metadata.language || "-"}</p>
-            <p><b>UUID:</b> {metadata.uuid || "-"}</p>
-            <p><b>Mobile:</b> {metadata.phone_number || "-"}</p>
-            <p><b>Date:</b> {metadata.attempt_on_time_stamp || "-"}</p>
-            <p>
-              <b>Duration:</b>{" "}
-              {metadata.duration != null
-                ? `${Math.floor(metadata.duration / 60)}m ${metadata.duration % 60}s`
-                : "-"}
-            </p>
-            <p>
-              <b>Status:</b>{" "}
-              <span
-                className={`status-badge status-${(metadata.status || "")
-                  .toLowerCase()
-                  .replace(/\s+/g, "")}`}
-              >
-                {metadata.status || "-"}
-              </span>
-            </p>
-            {metadata.rated_by && (
-              <p><b>Rated By:</b> {metadata.rated_by}</p>
-            )}
-          </div>
-
-          <div className="rating-panel">
-            <h3>Consultant Review</h3>
-
-            {metrics.length === 0 ? (
-              <p style={{ color: "#666" }}>No metrics available</p>
+          <>
+            {audioUrl ? (
+              <AudioPlayer audioUrl={audioUrl} />
             ) : (
-              metrics.map((m) => {
-                const useStars = Number(m.max) <= 5;
-
-                return (
-                  <div key={m.name} className="metric">
-                    <label>{m.name}</label>
-
-                    {useStars ? (
-                      <StarRating
-                        value={m.value ?? 0}
-                        min={Number(m.min) || 1}
-                        max={Number(m.max) || 5}
-                        disabled={disableInputs}
-                        onChange={(val) => handleRatingChange(m.name, val)}
-                      />
-                    ) : (
-                      <input
-                        type="number"
-                        min={m.min}
-                        max={m.max}
-                        value={m.value ?? ""}
-                        disabled={disableInputs}
-                        onChange={(e) => handleRatingChange(m.name, e.target.value)}
-                      />
-                    )}
-
-                    <p
-                      className="rating-range"
-                      style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}
-                    >
-                      Allowed: {m.min} - {m.max}
-                    </p>
-                  </div>
-                );
-              })
+              <div className="audio-unavailable">Audio not available</div>
             )}
 
-            <textarea
-              placeholder="Comments"
-              value={comments}
-              disabled={disableInputs}
-              onChange={(e) => setComments(e.target.value)}
-            />
+            <div className="review-body">
+              {/* Metadata */}
+              <div className="metadata">
+                <h3>Call Metadata</h3>
 
-            {!isSubmitted && isEditable && (
-              <button className="submit-btn" onClick={submitReview}>
-                Submit
-              </button>
-            )}
+                <p>
+                  <b>Organization:</b> {metadata.org_name || metadata.schema_name || "-"}
+                </p>
+                <p>
+                  <b>Language:</b> {metadata.language || "-"}
+                </p>
+                <p>
+                  <b>UUID:</b> {metadata.uuid || "-"}
+                </p>
+                <p>
+                  <b>Mobile:</b> {metadata.phone_number || "-"}
+                </p>
+                <p>
+                  <b>Date:</b>{" "}
+                  {metadata.attempt_on_time_stamp
+                    ? new Date(metadata.attempt_on_time_stamp).toLocaleString()
+                    : "-"}
+                </p>
+                <p>
+                  <b>Duration:</b>{" "}
+                  {metadata.duration != null
+                    ? `${Math.floor(metadata.duration / 60)}m ${metadata.duration % 60}s`
+                    : "-"}
+                </p>
+                <p>
+                  <b>Status:</b>{" "}
+                  <span
+                    className={`status-badge status-${(metadata.status || "")
+                      .toLowerCase()
+                      .replace(/\s+/g, "")}`}
+                  >
+                    {metadata.status || "-"}
+                  </span>
+                </p>
 
-            {isSubmitted && isEditable && !isEditing && (
-              <button className="edit-btn" onClick={() => setIsEditing(true)}>
-                Edit
-              </button>
-            )}
+                {metadata.rated_by && (
+                  <p>
+                    <b>Rated By:</b> {metadata.rated_by}
+                  </p>
+                )}
+              </div>
 
-            {isEditing && isEditable && (
-              <button className="submit-btn" onClick={submitReview}>
-                Update
-              </button>
-            )}
+              {/* Consultant Review */}
+              <div className="rating-panel">
+                <h3>Consultant Review</h3>
 
-            {!isEditable && (
-              <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "8px" }}>
-                {lockMessage}
-              </p>
-            )}
-          </div>
+                {metrics.length === 0 ? (
+                  <p style={{ color: "#666" }}>No metrics available</p>
+                ) : (
+                  metrics.map((m) => {
+                    const useStars = Number(m.max) <= 5;
 
-          {leadMetrics.length > 0 && (
-            <div className="rating-panel">
-              <h3>Lead Final Review</h3>
+                    return (
+                      <div key={m.name} className="metric">
+                        <label>{m.name}</label>
 
-              {leadMetrics.map((m) => {
-                const useStars = Number(m.max) <= 5;
+                        {useStars ? (
+                          <StarRating
+                            value={m.value ?? 0}
+                            min={Number(m.min) || 1}
+                            max={Number(m.max) || 5}
+                            disabled={disableInputs}
+                            onChange={(val) => handleRatingChange(m.name, val)}
+                          />
+                        ) : (
+                          <input
+                            type="number"
+                            min={m.min}
+                            max={m.max}
+                            value={m.value ?? ""}
+                            disabled={disableInputs}
+                            onChange={(e) =>
+                              handleRatingChange(m.name, e.target.value)
+                            }
+                          />
+                        )}
 
-                return (
-                  <div key={m.name} className="metric">
-                    <label>{m.name}</label>
+                        <p
+                          className="rating-range"
+                          style={{
+                            fontSize: "11px",
+                            color: "#666",
+                            marginTop: "2px",
+                          }}
+                        >
+                          Allowed: {m.min} - {m.max}
+                        </p>
+                      </div>
+                    );
+                  })
+                )}
 
-                    {useStars ? (
-                      <StarRating
-                        value={m.value ?? 0}
-                        min={Number(m.min) || 1}
-                        max={Number(m.max) || 5}
-                        disabled={true}
-                        readOnly={true}
-                      />
-                    ) : (
-                      <input
-                        type="number"
-                        min={m.min}
-                        max={m.max}
-                        value={m.value ?? ""}
-                        disabled={true}
-                        readOnly
-                      />
-                    )}
+                <textarea
+                  placeholder="Comments"
+                  value={comments}
+                  disabled={disableInputs}
+                  onChange={(e) => setComments(e.target.value)}
+                />
 
-                    <p
-                      className="rating-range"
-                      style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}
-                    >
-                      Allowed: {m.min} - {m.max}
-                    </p>
-                  </div>
-                );
-              })}
+                {!isSubmitted && isEditable && (
+                  <button className="submit-btn" onClick={submitReview}>
+                    Submit
+                  </button>
+                )}
 
-              <textarea
-                placeholder="Lead Comment"
-                value={leadComment}
-                disabled={true}
-                readOnly
-              />
+                {isSubmitted && isEditable && !isEditing && (
+                  <button className="edit-btn" onClick={() => setIsEditing(true)}>
+                    Edit
+                  </button>
+                )}
+
+                {isEditing && isEditable && (
+                  <button className="submit-btn" onClick={submitReview}>
+                    Update
+                  </button>
+                )}
+
+                {!isEditable && (
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#dc2626",
+                      marginTop: "8px",
+                    }}
+                  >
+                    {lockMessage}
+                  </p>
+                )}
+              </div>
+
+              {/* Lead Final Review */}
+              {leadMetrics.length > 0 && (
+                <div className="rating-panel">
+                  <h3>Lead Final Review</h3>
+
+                  {leadMetrics.map((m) => {
+                    const useStars = Number(m.max) <= 5;
+
+                    return (
+                      <div key={m.name} className="metric">
+                        <label>{m.name}</label>
+
+                        {useStars ? (
+                          <StarRating
+                            value={m.value ?? 0}
+                            min={Number(m.min) || 1}
+                            max={Number(m.max) || 5}
+                            disabled={true}
+                            readOnly={true}
+                          />
+                        ) : (
+                          <input
+                            type="number"
+                            min={m.min}
+                            max={m.max}
+                            value={m.value ?? ""}
+                            disabled={true}
+                            readOnly
+                          />
+                        )}
+
+                        <p
+                          className="rating-range"
+                          style={{
+                            fontSize: "11px",
+                            color: "#666",
+                            marginTop: "2px",
+                          }}
+                        >
+                          Allowed: {m.min} - {m.max}
+                        </p>
+                      </div>
+                    );
+                  })}
+
+                  <textarea
+                    placeholder="Lead Comment"
+                    value={leadComment}
+                    disabled={true}
+                    readOnly
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
