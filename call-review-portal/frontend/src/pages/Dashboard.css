@@ -117,7 +117,37 @@
   font-weight: 500;
   text-align: center;
 }
+/* NEW: Operator + Value unified styling */
+.entity-operator-select,
+.entity-value-input {
+  height: 44px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+  box-sizing: border-box;
+  background-color: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
+}
 
+/* widths */
+.entity-operator-select {
+  width: 150px;
+  min-width: 140px;
+}
+
+.entity-value-input {
+  width: 220px;
+  min-width: 180px;
+}
+/* focus state */
+.entity-operator-select:focus,
+.entity-value-input:focus {
+  outline: none;
+  border-color: #6fb3be;
+  box-shadow: 0 0 0 3px rgba(111, 179, 190, 0.15);
+}
 /* ================= CLEAN INLINE ENTITY FILTERS ================= */
 .entity-inline-section {
   margin-top: 18px;
@@ -144,8 +174,8 @@
 
 .entity-inline-row {
   display: flex;
-  align-items: center; /* for multi-select */
-  gap: 12px;
+  align-items: flex-end; /* for multi-select */
+  gap: 14px;
   flex-wrap: nowrap;
   width: 100%;
   overflow-x: auto; /* safe if screen gets tight */
@@ -210,25 +240,31 @@
   padding: 4px 8px;
 }
 
+/* UPDATED: Remove button aligned with inputs */
 .remove-entity-btn {
-  background-color: #f56565;
-  color: white;
-  border: none;
+  height: 43px;                 
+  min-width: 43px;
+  width: 43px;
+
   border-radius: 8px;
-  height: 44px;
-  min-width: 44px;
-  width: 44px;
-  padding: 0;
-  font-size: 18px;
+  border: 1px solid #f56565;   
+
+  color: #fff;       
+  background-color: #f56565;
+
+  font-size: 16px;
   font-weight: 700;
+
   cursor: pointer;
-  transition: all 0.2s ease;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-}
 
+  flex-shrink: 0;
+
+  transition: all 0.2s ease;
+}
 .remove-entity-btn:hover {
   opacity: 0.95;
   transform: translateY(-1px);
@@ -415,6 +451,11 @@ tbody tr:hover {
     width: 100%;
     min-width: 0;
   }
+  .entity-operator-select,
+  .entity-value-input {
+  width: 100%;
+  min-width: 0;
+}
 }
 
 @media (max-width: 640px) {
