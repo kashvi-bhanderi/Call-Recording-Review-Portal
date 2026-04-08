@@ -17,6 +17,16 @@ const SelectOrganization = ({ role }) => {
     fetchOrganizations();
   }, []);
 
+  useEffect(() => {
+    const savedOrg = localStorage.getItem("selectedOrg");
+    const savedTemplate = localStorage.getItem("selectedTemplate");
+
+    if (savedOrg) {
+      setSelectedOrg(savedOrg);
+      fetchTemplates(savedOrg, savedTemplate || "");
+    }
+  }, []);
+
   const fetchOrganizations = async () => {
     setLoadingOrgs(true);
     try {
@@ -30,9 +40,10 @@ const SelectOrganization = ({ role }) => {
     }
   };
 
-  const fetchTemplates = async (schemaName) => {
+  const fetchTemplates = async (schemaName, preselectTemplate = "") => {
     if (!schemaName) {
       setTemplates([]);
+      setSelectedTemplate("");
       return;
     }
 
@@ -41,11 +52,27 @@ const SelectOrganization = ({ role }) => {
       const res = await axiosInstance.get("/calls/selectable-templates/", {
         params: { schema_name: schemaName },
       });
-      setTemplates(res.data.templates || []);
+
+      const templateList = res.data.templates || [];
+      setTemplates(templateList);
+
+      if (preselectTemplate) {
+        const exists = templateList.some(
+          (template) => String(template.template_id) === String(preselectTemplate)
+        );
+
+        if (exists) {
+          setSelectedTemplate(String(preselectTemplate));
+        } else {
+          setSelectedTemplate("");
+          localStorage.removeItem("selectedTemplate");
+        }
+      }
     } catch (error) {
       console.error("Error fetching templates:", error);
       toast.error("Failed to load templates");
       setTemplates([]);
+      setSelectedTemplate("");
     } finally {
       setLoadingTemplates(false);
     }
@@ -137,11 +164,11 @@ const SelectOrganization = ({ role }) => {
                     {templates.map((template) => (
                       <option
                         key={template.template_id}
-                        value={template.template_id}
+                        value={String(template.template_id)}
                       >
                         {template.template_name
                           ? `${template.template_name} (${template.template_id})`
-                          : template.template_id}
+                          : `Template ${template.template_id}`}
                       </option>
                     ))}
                   </select>

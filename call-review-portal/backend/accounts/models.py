@@ -20,6 +20,25 @@ class Organization(models.Model):
     def __str__(self): 
         return self.org_name
 
+
+class Template(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="templates"
+    )
+    template_id = models.IntegerField()  
+    template_name = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ("organization", "template_id")
+        ordering = ["organization__org_name", "template_id"]
+
+    def __str__(self):
+        return f"{self.organization.org_name} | {self.template_id} | {self.template_name}"
+    
+
 class User(AbstractUser):
 
     ROLE_CHOICES = (

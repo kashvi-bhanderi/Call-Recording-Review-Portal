@@ -2,12 +2,13 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.core.mail import send_mail
 
-from .models import User, Language, Organization
+from .models import User, Language, Organization,Template
 
 
 # Register Language
 admin.site.register(Language)
 admin.site.register(Organization)
+admin.site.register(Template)
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):

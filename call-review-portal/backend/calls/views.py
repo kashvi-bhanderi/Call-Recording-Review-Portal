@@ -9,7 +9,7 @@ from django.db import transaction
 from rest_framework.generics import ListAPIView
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Call, CallCH, Tag, EvaluationMetric, EvaluationCallRating
-from accounts.models import Language, User, Organization
+from accounts.models import Language, User, Organization, Template
 from .serializers import DashboardCallSerializer, EvaluationCallRatingSerializer
 from .filters import DashboardCallFilter
 from accounts.authentication import CookieJWTAuthentication
@@ -1034,8 +1034,73 @@ class SelectableTemplatesAPIView(APIView):
         return Response({
             "templates": [{"template_id": t} for t in sorted(template_ids)]
         })
+class SelectableTemplatesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CookieJWTAuthentication]
 
+    def get(self, request):
+        user = request.user
+        schema_name = request.GET.get("schema_name")
 
+        if not schema_name:
+            return Response({"error": "schema_name is required"}, status=400)
+
+        ch_queryset = CallCH.objects.using("clickhouse").all()
+
+        # Superuser can see all templates in that org
+        if user.is_superuser:
+            template_ids = list(
+                ch_queryset.filter(schema_name=schema_name)
+                .values_list("template_id", flat=True)
+                .distinct()
+            )
+        else:
+            # Check org access
+            has_org_access = user.accessible_organizations.filter(schema_name=schema_name).exists()
+            if not has_org_access:
+                return Response({"templates": []})
+
+            # Check language access
+            allowed_languages = list(
+                user.accessible_languages.values_list("language", flat=True)
+            )
+            if not allowed_languages:
+                return Response({"templates": []})
+
+            # Only templates from selected org + accessible languages
+            template_ids = list(
+                ch_queryset.filter(
+                    schema_name=schema_name,
+                    language__in=allowed_languages
+                )
+                .values_list("template_id", flat=True)
+                .distinct()
+            )
+
+        org = Organization.objects.filter(schema_name=schema_name, is_active=True).first()
+
+        template_name_map = {}
+        if org:
+            template_name_map = {
+                t.template_id: t.template_name
+                for t in Template.objects.filter(
+                    organization=org,
+                    template_id__in=template_ids,
+                    is_active=True
+                )
+            }
+
+        templates = [
+            {
+                "template_id": t,
+                "template_name": template_name_map.get(t, f"Template {t}")
+            }
+            for t in sorted(template_ids)
+        ]
+
+        return Response({
+            "templates": templates
+        })
 # ------------------------
 # SELECTABLE ENTITIES
 # ------------------------

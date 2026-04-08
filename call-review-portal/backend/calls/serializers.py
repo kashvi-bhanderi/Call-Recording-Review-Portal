@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import CallCH, EvaluationCallRating, Tag
-from accounts.models import Language, User, Organization
+from accounts.models import Language, User, Organization, Template
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Call, EvaluationCallRating, EvaluationMetric
@@ -11,6 +11,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
     language_name = serializers.SerializerMethodField()
     organization_name = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
+    template_name = serializers.SerializerMethodField()
     overall_rating = serializers.SerializerMethodField()
     duration_display = serializers.SerializerMethodField()
     rated_by_name = serializers.SerializerMethodField()
@@ -25,6 +26,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
         fields = [
             "uuid",
             "template_id",
+            "template_name",
             "language_name",
             "organization_name",
             "schema_name",
@@ -70,6 +72,14 @@ class DashboardCallSerializer(serializers.ModelSerializer):
         org = Organization.objects.filter(schema_name=obj.schema_name).first()
         return org.org_name if org else obj.schema_name 
     
+    def get_template_name(self, obj):
+        template = Template.objects.filter(
+            organization__schema_name=obj.schema_name,
+            template_id=obj.template_id,
+            is_active=True
+        ).first()
+
+        return template.template_name if template else f"Template {obj.template_id}"
     # ------------------------
     # STATUS DISPLAY
     # ------------------------
