@@ -4,7 +4,7 @@ import axiosInstance from "../api/axiosInstance";
 import "../pages/Dashboard.css";
 import toast from "react-hot-toast";
 
-const DashboardHeader = ({ title }) => {
+const DashboardHeader = ({ title, subtitle }) => {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -28,8 +28,10 @@ const DashboardHeader = ({ title }) => {
 
   return (
     <div className="dashboard-header">
-      <h2>{title}</h2>
-
+      <div>
+        <h2>{title}</h2>
+        {subtitle && <p className="dashboard-subtitle">{subtitle}</p>}
+      </div>
       <div style={{ display: "flex", gap: "10px" }}>
         <button className="logout-btn" onClick={handleUpdatePassword}>
           Update Password

@@ -11,9 +11,13 @@ const Dashboard = ({ role }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [totalCallCount, setTotalCallCount] = useState(0);
 
   const savedOrg = localStorage.getItem("selectedOrg") || "";
   const savedTemplate = localStorage.getItem("selectedTemplate") || "";
+  const savedOrgName = localStorage.getItem("selectedOrgName") || savedOrg;
+  const savedTemplateName =
+    localStorage.getItem("selectedTemplateName") || `Template ${savedTemplate}`;
 
   const PAGE_SIZE = 8;
   const DEFAULT_SORT = "-attempt_on_time_stamp";
@@ -129,8 +133,8 @@ const Dashboard = ({ role }) => {
       schema_name: searchParams.get("schema_name")
         ? searchParams.get("schema_name").split(",").filter(Boolean)
         : savedOrg
-        ? [savedOrg]
-        : [],
+          ? [savedOrg]
+          : [],
       status: searchParams.get("status")
         ? searchParams.get("status").split(",").filter(Boolean)
         : [],
@@ -206,8 +210,8 @@ const Dashboard = ({ role }) => {
       setPrevPageUrl(response.data.previous ?? null);
 
       const totalCount = response.data.count ?? results.length;
+      setTotalCallCount(totalCount);
       setTotalPages(Math.ceil(totalCount / PAGE_SIZE));
-
       if (role === "consultant") {
         const initialRowData = {};
         results.forEach((call) => {
@@ -583,10 +587,7 @@ const Dashboard = ({ role }) => {
 
   /* ================= TABLE COLUMNS ================= */
   const leadColumns = [
-    { key: "template_id", label: "Template ID" },
-    { key: "language_name", label: "Language" },
-    { key: "organization_name", label: "Organization" },
-    { key: "phone_number", label: "Mobile No" },
+    { key: "phone_number", label: "User Mobile No" },
     { key: "uuid", label: "Call UUID" },
     { key: "attempt_on_time_stamp", label: "Call Date & Time" },
     { key: "duration_display", label: "Duration" },
@@ -597,8 +598,6 @@ const Dashboard = ({ role }) => {
   ];
 
   const consultantColumns = [
-    { key: "language_name", label: "Language" },
-    { key: "organization_name", label: "Organization" },
     { key: "uuid", label: "Call UUID" },
     { key: "attempt_on_time_stamp", label: "Call Date & Time" },
     { key: "duration_display", label: "Duration" },
@@ -610,13 +609,20 @@ const Dashboard = ({ role }) => {
 
   const columns = role === "lead" ? leadColumns : consultantColumns;
 
+
+  const headerLanguage =
+    calls?.[0]?.languages_name ||
+    calls?.[0]?.language_name ||
+    "All Languages";
+
+  const dashboardSubtitle = `${savedOrgName} - ${savedTemplateName} - ${headerLanguage}`;
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
         <DashboardHeader
           title={role === "lead" ? "Lead Dashboard" : "Consultant Dashboard"}
+          subtitle={dashboardSubtitle}
         />
-
         {/* Filters */}
         <div className="filter-card">
           <div className="filter-grid">
@@ -625,7 +631,7 @@ const Dashboard = ({ role }) => {
                 <input
                   type="text"
                   name="phone_number"
-                  placeholder="Mobile No"
+                  placeholder="User Mobile No"
                   value={filters.phone_number}
                   onChange={handleChange}
                 />
@@ -647,14 +653,14 @@ const Dashboard = ({ role }) => {
                 value={sortBy}
                 onChange={(e) => handleSortChange(e.target.value)}
               >
-                <option value="-attempt_on_time_stamp">Latest First</option>
-                <option value="attempt_on_time_stamp">Oldest First</option>
-                <option value="duration">Duration Low to High</option>
-                <option value="-duration">Duration High to Low</option>
+                <option value="-attempt_on_time_stamp">Latest Date First</option>
+                <option value="attempt_on_time_stamp">Oldest Date First</option>
+                <option value="duration">Call Duration Low to High</option>
+                <option value="-duration">Call Duration High to Low</option>
               </select>
             </div>
 
-            <div className="filter-item">
+            {/* <div className="filter-item">
               <select
                 value={filters.language?.[0] || ""}
                 onChange={(e) =>
@@ -671,7 +677,7 @@ const Dashboard = ({ role }) => {
                   </option>
                 ))}
               </select>
-            </div>
+            </div> */}
 
             <div className="filter-item">
               <select
@@ -683,7 +689,7 @@ const Dashboard = ({ role }) => {
                   }))
                 }
               >
-                <option value="">Select Status</option>
+                <option value="">Select Call Review Status</option>
                 {filterOptions.statuses.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
@@ -762,6 +768,10 @@ const Dashboard = ({ role }) => {
               >
                 + Add Entity Filter
               </button>
+
+              <div className="call-count-badge">
+                Total Calls: <span>{totalCallCount}</span>
+              </div>
             </div>
 
             {(filters.entity_filters || []).length > 0 && (

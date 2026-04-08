@@ -104,6 +104,25 @@ const SelectOrganization = ({ role }) => {
     localStorage.setItem("selectedOrg", selectedOrg);
     localStorage.setItem("selectedTemplate", selectedTemplate);
 
+    const selectedOrgObj = organizations.find(
+      (org) => org.schema_name === selectedOrg
+    );
+
+    const selectedTemplateObj = templates.find(
+      (template) => String(template.template_id) === String(selectedTemplate)
+    );
+
+    localStorage.setItem(
+      "selectedOrgName",
+      selectedOrgObj?.org_name || selectedOrg
+    );
+
+    localStorage.setItem(
+      "selectedTemplateName",
+      selectedTemplateObj?.template_name ||
+      `Template ${selectedTemplateObj?.template_id || selectedTemplate}`
+    );
+
     if (role === "consultant") {
       navigate("/consultant");
     } else {

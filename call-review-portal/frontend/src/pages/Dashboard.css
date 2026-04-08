@@ -33,6 +33,14 @@
   margin: 0;
   letter-spacing: 0.5px;
 }
+.dashboard-subtitle {
+  margin: 6px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.2px;
+  word-break: break-word;
+}
 
 .logout-btn {
   background: white;
@@ -50,7 +58,29 @@
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
+.entity-inline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 
+.call-count-badge {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  padding: 8px 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.call-count-badge span {
+  color: #2563eb;
+  font-weight: 700;
+}
 /* ================= Filters ================= */
 .filter-card {
   background-color: #fff;
@@ -276,6 +306,7 @@
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content: flex-end; /* moves buttons to right */
 }
 
 .filter-actions button {
@@ -291,11 +322,11 @@
 }
 
 .search-btn {
-  background-color: #6fb3be;
+  background-color: #f56565;
 }
 
 .reset-btn {
-  background-color: #f56565;
+  background-color: #6fb3be;
 }
 
 .filter-actions button:hover {
