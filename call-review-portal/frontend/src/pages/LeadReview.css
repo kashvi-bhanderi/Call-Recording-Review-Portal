@@ -66,3 +66,134 @@ select:focus{
     width: 100%;
   }
 }
+.transcript-section {
+  margin-top: 20px;
+  margin-bottom: 24px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+}
+
+.transcript-section h3 {
+  margin: 0 0 14px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.transcript-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.transcript-header-row,
+.transcript-data-row {
+  display: grid;
+  grid-template-columns: 72px minmax(220px, 1fr) minmax(320px, 1.4fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.transcript-header-row {
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.transcript-header-row .transcript-col {
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+}
+.transcript-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 220px; /* approx 3 turns visible */
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.transcript-col {
+  min-width: 0;
+}
+
+.turn-col {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.turn-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transcript-cell {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 44px;
+  border: 1px solid;
+}
+
+.user-cell {
+  background: #f8faff;
+  border-color: #dbeafe;
+  color: #1e3a8a;
+}
+
+.agent-cell {
+  background: #f4fbf7;
+  border-color: #cceedd;
+  color: #065f46;
+}
+
+.transcript-empty {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+@media (max-width: 992px) {
+  .transcript-header-row,
+  .transcript-data-row {
+    grid-template-columns: 64px 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .transcript-header-row {
+    display: none;
+  }
+
+  .transcript-data-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #fafafa;
+  }
+
+  .turn-col {
+    justify-content: flex-start;
+  }
+
+  .turn-badge {
+    width: auto;
+    min-width: 36px;
+    padding: 0 10px;
+  }
+}

@@ -5,6 +5,7 @@ import AudioPlayer from "../components/AudioPlayer";
 import DashboardHeader from "../components/DashboardHeader";
 import StarRating from "../components/starrating";
 import "./CallReview.css";
+import "./LeadReview.css"; // reusing transcript styles
 import toast from "react-hot-toast";
 
 const CallReview = () => {
@@ -16,7 +17,8 @@ const CallReview = () => {
   const [metrics, setMetrics] = useState([]);
   const [comments, setComments] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
-
+  const [transcript, setTranscript] = useState([]);
+  const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [leadMetrics, setLeadMetrics] = useState([]);
   const [leadComment, setLeadComment] = useState("");
 
@@ -69,6 +71,16 @@ const CallReview = () => {
       } catch (audioErr) {
         console.warn("Audio fetch failed:", audioErr);
         setAudioUrl("");
+      }
+      try {
+        setTranscriptLoading(true);
+        const transcriptRes = await axiosInstance.get(`/calls/transcript/${uuid}/`);
+        setTranscript(transcriptRes.data?.transcript || []);
+      } catch (transcriptErr) {
+        console.warn("Transcript fetch failed:", transcriptErr);
+        setTranscript([]);
+      } finally {
+        setTranscriptLoading(false);
       }
     } catch (err) {
       console.error("Call detail fetch failed:", err);
@@ -157,6 +169,47 @@ const CallReview = () => {
               <div className="audio-unavailable">Audio not available</div>
             )}
 
+
+            <div className="transcript-section">
+              <h3>Call Transcript</h3>
+
+              {transcriptLoading ? (
+                <p>Loading transcript...</p>
+              ) : transcript.length > 0 ? (
+                <div className="transcript-table-wrapper">
+                  <div className="transcript-header-row">
+                    <div className="transcript-col turn-col">Turn</div>
+                    <div className="transcript-col user-col">User</div>
+                    <div className="transcript-col agent-col">Agent</div>
+                  </div>
+
+                  <div className="transcript-body">
+                    {transcript.map((row, index) => (
+                      <div
+                        key={`${row.uuid}-${row.round}-${index}`}
+                        className="transcript-data-row"
+                      >
+                        <div className="transcript-col turn-col turn-badge">
+                          {row.round || index + 1}
+                        </div>
+
+                        <div className="transcript-col transcript-cell user-cell">
+                          {row.stt_output && row.stt_output.trim() ? row.stt_output : "-"}
+                        </div>
+
+                        <div className="transcript-col transcript-cell agent-cell">
+                          {row.tts_input && row.tts_input.trim() ? row.tts_input : "-"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="transcript-empty">No transcript available</p>
+              )}
+            </div>
+
+            <div className="review-body"></div>
             <div className="review-body">
               {/* Metadata */}
               <div className="metadata">

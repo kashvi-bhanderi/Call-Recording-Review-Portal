@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CallCH, EvaluationCallRating, Tag
+from .models import CallCH, EvaluationCallRating, Tag, CallTurnwiseCH
 from accounts.models import Language, User, Organization, Template
 from django.utils import timezone
 from rest_framework import serializers
@@ -299,3 +299,8 @@ class EvaluationCallRatingSerializer(serializers.Serializer):
             call.save()
 
             return call
+        
+class CallTranscriptRowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CallTurnwiseCH
+        fields = ["round", "stt_output", "tts_input"]

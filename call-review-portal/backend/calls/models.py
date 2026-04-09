@@ -48,6 +48,17 @@ class CallCH(models.Model):
         managed = False
         db_table = "cai_call"
 
+class CallTurnwiseCH(models.Model):
+    uuid = models.TextField()
+    round = models.IntegerField()
+    stt_output = models.TextField(null=True, blank=True)
+    tts_input = models.TextField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = "cai_turnwise_call"
+        unique_together = ('uuid', 'round')
+
 class Call(models.Model):
 
     STATUS_CHOICES = (

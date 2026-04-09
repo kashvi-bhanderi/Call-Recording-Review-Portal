@@ -8,14 +8,16 @@ from django.utils import timezone
 from django.db import transaction
 from rest_framework.generics import ListAPIView
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Call, CallCH, Tag, EvaluationMetric, EvaluationCallRating
+from .models import Call, CallCH, Tag, EvaluationMetric, EvaluationCallRating,CallTurnwiseCH
 from accounts.models import Language, User, Organization, Template
-from .serializers import DashboardCallSerializer, EvaluationCallRatingSerializer
+from .serializers import DashboardCallSerializer, EvaluationCallRatingSerializer,CallTranscriptRowSerializer
 from .filters import DashboardCallFilter
 from accounts.authentication import CookieJWTAuthentication
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from .models import EntityDefinition
 from .entity_operators import OPERATOR_CONFIG
+from django.http import JsonResponse
+from django.db import connections
 from .services import (
     acquire_lock,
     release_lock,
@@ -1296,3 +1298,28 @@ class SelectableEntityValuesAPIView(APIView):
             "data_type": data_type,
             "values": sorted_values
         })
+    
+class CallTranscriptAPIView(APIView):
+    def get(self, request, call_uuid):
+        query = """
+            SELECT uuid, round, stt_output, tts_input
+            FROM cai_turnwise_call
+            WHERE uuid = %(uuid)s
+            ORDER BY round ASC
+        """
+
+        with connections["clickhouse"].cursor() as cursor:
+            cursor.execute(query, {"uuid": str(call_uuid)})
+            rows = cursor.fetchall()
+
+        transcript = [
+            {
+                "uuid": str(row[0]),
+                "round": row[1],
+                "stt_output": row[2],
+                "tts_input": row[3],
+            }
+            for row in rows
+        ]
+
+        return JsonResponse({"transcript": transcript}, status=200)
