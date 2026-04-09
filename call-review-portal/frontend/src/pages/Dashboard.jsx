@@ -917,12 +917,13 @@ const Dashboard = ({ role }) => {
           </div>
 
           <div className="filter-actions">
+             <button className="reset-btn" onClick={handleReset}>
+              Reset
+            </button>
             <button className="search-btn" onClick={handleSearch}>
               Search
             </button>
-            <button className="reset-btn" onClick={handleReset}>
-              Reset
-            </button>
+           
           </div>
         </div>
 

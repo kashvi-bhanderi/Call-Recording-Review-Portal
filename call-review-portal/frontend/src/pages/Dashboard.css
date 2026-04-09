@@ -302,11 +302,11 @@
 
 /* ================= Buttons ================= */
 .filter-actions {
-  margin-top: 18px;
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end; /* moves buttons to right */
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .filter-actions button {
