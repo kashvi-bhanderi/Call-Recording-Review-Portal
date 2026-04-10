@@ -197,3 +197,7 @@ select:focus{
     padding: 0 10px;
   }
 }
+.metric label {
+  white-space: nowrap;  
+  margin-top: 10px;
+}

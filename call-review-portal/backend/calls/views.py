@@ -631,6 +631,7 @@ class ConsultantCallDetailAPIView(APIView):
                 "status": call.get_status_display(),
                 "rated_by": call.rated_by.username if call.rated_by else None,
                 "entities": ch_call.entities or {},
+                "good_audio_to_share": call.good_audio_to_share,
             },
             "metrics": [
                 {
@@ -802,7 +803,8 @@ class LeadCallDetailAPIView(APIView):
             "tag_options": [
                 {"id": t.id, "name": t.name} for t in tags
             ],
-            "selected_tags": [t.id for t in call.tags.all()]
+            "selected_tags": [t.id for t in call.tags.all()],
+            "good_audio_to_share": call.good_audio_to_share,
         }
 
         return Response(data)
@@ -822,10 +824,11 @@ class LeadSubmitReviewAPIView(APIView):
         tags = request.data.get("tags", [])
         good_audio_to_share = request.data.get("good_audio_to_share")
 
-        try:
-            good_audio_to_share = normalize_bool(good_audio_to_share)
-        except Exception:
-            return Response({"error": "Invalid value for good_audio_to_share"}, status=400)
+        if good_audio_to_share is not None:
+            try:
+                good_audio_to_share = normalize_bool(good_audio_to_share)
+            except Exception:
+                return Response({"error": "Invalid value for good_audio_to_share"}, status=400)
         
         new_status = request.data.get("status")
         

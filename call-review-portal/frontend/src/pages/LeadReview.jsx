@@ -26,7 +26,7 @@ const LeadReview = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [goodAudio, setGoodAudio] = useState("");
+  const [goodAudio, setGoodAudio] = useState(false);
 
   const fetchCall = useCallback(async () => {
     setLoading(true);
@@ -44,13 +44,7 @@ const LeadReview = () => {
       setTags(data.selected_tags || []);
       const val = data.good_audio_to_share;
 
-      setGoodAudio(
-        val === true || val === "true" || val === 1
-          ? "true"
-          : val === false || val === "false" || val === 0
-            ? "false"
-            : ""
-      );
+     setGoodAudio(val === true);
       const alreadyReviewed =
         [3, 4].includes(data.status) && !!data.metadata?.reviewed_by;
 
@@ -85,6 +79,12 @@ const LeadReview = () => {
   useEffect(() => {
     fetchCall();
   }, [fetchCall]);
+
+useEffect(() => {
+  if (isEditing) {
+    setGoodAudio(goodAudio);
+  }
+}, [isEditing]);
 
   const handleRatingChange = (name, value) => {
     setMetrics((prev) =>
@@ -126,12 +126,7 @@ const LeadReview = () => {
         comment: leadComment,
         status: Number(status),
         tags: tags.map(Number),
-        good_audio_to_share:
-          goodAudio === ""
-            ? null
-            : goodAudio === "true"
-              ? true
-              : false,
+        good_audio_to_share: goodAudio,
       });
 
       toast.success(
@@ -243,7 +238,7 @@ const LeadReview = () => {
                 <p>
                   <b>Duration:</b>{" "}
                   {metadata.duration != null
-                    ? `${Math.floor(metadata.duration / 60 ).toString().padStart(2, '0')}:${(metadata.duration % 60).toString().padStart(2, '0')}`
+                    ? `${Math.floor(metadata.duration / 60).toString().padStart(2, '0')}:${(metadata.duration % 60).toString().padStart(2, '0')}`
                     : "-"}
                 </p>
 
@@ -346,15 +341,17 @@ const LeadReview = () => {
                   <option value={3}>Production Issue</option>
                   <option value={4}>Approved</option>
                 </select>
-                <select
-                  value={goodAudio}
-                  disabled={disableInputs}
-                  onChange={(e) => setGoodAudio(e.target.value)}
-                >
-                  <option value="">Good Audio to Share?</option>
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
+                <div className="metric">
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="checkbox"
+                      checked={goodAudio}
+                      disabled={disableInputs}
+                      onChange={(e) => setGoodAudio(e.target.checked)}
+                    />
+                    Good audio (shareable)
+                  </label>
+                </div>
                 <select
                   multiple
                   value={tags}
