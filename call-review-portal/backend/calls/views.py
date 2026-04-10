@@ -161,6 +161,7 @@ class SubmitCallReviewAPIView(APIView):
 
     def post(self, request):
         call_uuid = request.data.get("call_uuid")
+        good_audio_to_share = request.data.get("good_audio_to_share")
         call = Call.objects.filter(uuid=call_uuid).first()
 
         if call:
@@ -189,6 +190,12 @@ class SubmitCallReviewAPIView(APIView):
         if serializer.is_valid():
             try:
                 call = serializer.create_or_update_ratings(user=request.user)
+                if good_audio_to_share is not None:
+                    try:
+                        call.good_audio_to_share = normalize_bool(good_audio_to_share)
+                        call.save()
+                    except Exception:
+                        return Response({"error": "Invalid value for good_audio_to_share"}, status=400)
             except DRFValidationError as e:
                 return Response(
                     {
@@ -281,6 +288,16 @@ class DashboardCallView(ListAPIView):
             ).values_list("uuid", flat=True)
             queryset = queryset.filter(uuid__in=list(uuids))
 
+        good_audio = self.request.GET.get("good_audio_to_share")
+
+        if good_audio in ["true", "false"]:
+            bool_val = good_audio == "true"
+
+            uuids = Call.objects.filter(
+                good_audio_to_share=bool_val
+            ).values_list("uuid", flat=True)
+
+            queryset = queryset.filter(uuid__in=list(uuids))
         # ------------------------
         # ENTITY FILTERS (MULTI KEY + MULTI VALUE)
         # Logic:
@@ -801,8 +818,15 @@ class LeadSubmitReviewAPIView(APIView):
         ratings = request.data.get("ratings", {})
         comment = request.data.get("comment")
         tags = request.data.get("tags", [])
-        new_status = request.data.get("status")
+        good_audio_to_share = request.data.get("good_audio_to_share")
 
+        try:
+            good_audio_to_share = normalize_bool(good_audio_to_share)
+        except Exception:
+            return Response({"error": "Invalid value for good_audio_to_share"}, status=400)
+        
+        new_status = request.data.get("status")
+        
         try:
             new_status = int(new_status)
         except (TypeError, ValueError):
@@ -854,6 +878,7 @@ class LeadSubmitReviewAPIView(APIView):
                 call.reviewed_by = request.user
                 call.reviewed_at = timezone.now()
                 call.tags.set(tags)
+                call.good_audio_to_share = good_audio_to_share
                 call.save()
 
                 # release temporary lock after save
@@ -1330,17 +1355,14 @@ class ExportDashboardCallsCSV(APIView):
     authentication_classes = [CookieJWTAuthentication]
 
     def get(self, request):
-        # Reuse DashboardCallView logic
-        view = DashboardCallView()
-        view.request = request
-        view.args = ()
-        view.kwargs = {}
 
-        queryset = view.get_queryset()
+        good_audio_uuids = Call.objects.filter(
+            good_audio_to_share=True
+        ).values_list("uuid", flat=True)
 
-        # Apply django-filter (IMPORTANT)
-        filterset = DashboardCallFilter(request.GET, queryset=queryset)
-        queryset = filterset.qs
+        queryset = CallCH.objects.using("clickhouse").filter(
+            uuid__in=list(good_audio_uuids)
+        )
 
         # Create CSV response
         response = HttpResponse(content_type='text/csv')

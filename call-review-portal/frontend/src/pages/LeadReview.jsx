@@ -26,6 +26,7 @@ const LeadReview = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [goodAudio, setGoodAudio] = useState("");
 
   const fetchCall = useCallback(async () => {
     setLoading(true);
@@ -41,7 +42,15 @@ const LeadReview = () => {
       setStatus(data.status ?? "");
       setTagOptions(data.tag_options || []);
       setTags(data.selected_tags || []);
+      const val = data.good_audio_to_share;
 
+      setGoodAudio(
+        val === true || val === "true" || val === 1
+          ? "true"
+          : val === false || val === "false" || val === 0
+            ? "false"
+            : ""
+      );
       const alreadyReviewed =
         [3, 4].includes(data.status) && !!data.metadata?.reviewed_by;
 
@@ -117,6 +126,12 @@ const LeadReview = () => {
         comment: leadComment,
         status: Number(status),
         tags: tags.map(Number),
+        good_audio_to_share:
+          goodAudio === ""
+            ? null
+            : goodAudio === "true"
+              ? true
+              : false,
       });
 
       toast.success(
@@ -162,44 +177,44 @@ const LeadReview = () => {
             ) : (
               <div className="audio-unavailable">Audio not available</div>
             )}
-<div className="transcript-section">
-  <h3>Call Transcript</h3>
+            <div className="transcript-section">
+              <h3>Call Transcript</h3>
 
-  {transcriptLoading ? (
-    <p>Loading transcript...</p>
-  ) : transcript.length > 0 ? (
-    <div className="transcript-table-wrapper">
-      <div className="transcript-header-row">
-        <div className="transcript-col turn-col">Turn</div>
-        <div className="transcript-col user-col">User</div>
-        <div className="transcript-col agent-col">Agent</div>
-      </div>
+              {transcriptLoading ? (
+                <p>Loading transcript...</p>
+              ) : transcript.length > 0 ? (
+                <div className="transcript-table-wrapper">
+                  <div className="transcript-header-row">
+                    <div className="transcript-col turn-col">Turn</div>
+                    <div className="transcript-col user-col">User</div>
+                    <div className="transcript-col agent-col">Agent</div>
+                  </div>
 
-      <div className="transcript-body">
-        {transcript.map((row, index) => (
-          <div
-            key={`${row.uuid}-${row.round}-${index}`}
-            className="transcript-data-row"
-          >
-            <div className="transcript-col turn-col turn-badge">
-              {row.round || index + 1}
+                  <div className="transcript-body">
+                    {transcript.map((row, index) => (
+                      <div
+                        key={`${row.uuid}-${row.round}-${index}`}
+                        className="transcript-data-row"
+                      >
+                        <div className="transcript-col turn-col turn-badge">
+                          {row.round || index + 1}
+                        </div>
+
+                        <div className="transcript-col transcript-cell user-cell">
+                          {row.stt_output && row.stt_output.trim() ? row.stt_output : "-"}
+                        </div>
+
+                        <div className="transcript-col transcript-cell agent-cell">
+                          {row.tts_input && row.tts_input.trim() ? row.tts_input : "-"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="transcript-empty">No transcript available</p>
+              )}
             </div>
-
-            <div className="transcript-col transcript-cell user-cell">
-              {row.stt_output && row.stt_output.trim() ? row.stt_output : "-"}
-            </div>
-
-            <div className="transcript-col transcript-cell agent-cell">
-              {row.tts_input && row.tts_input.trim() ? row.tts_input : "-"}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  ) : (
-    <p className="transcript-empty">No transcript available</p>
-  )}
-</div>
             <div className="review-body">
               {/* Metadata */}
               <div className="metadata">
@@ -331,7 +346,15 @@ const LeadReview = () => {
                   <option value={3}>Production Issue</option>
                   <option value={4}>Approved</option>
                 </select>
-
+                <select
+                  value={goodAudio}
+                  disabled={disableInputs}
+                  onChange={(e) => setGoodAudio(e.target.value)}
+                >
+                  <option value="">Good Audio to Share?</option>
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
                 <select
                   multiple
                   value={tags}

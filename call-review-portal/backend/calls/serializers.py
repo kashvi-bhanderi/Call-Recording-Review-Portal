@@ -21,6 +21,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
     is_locked = serializers.SerializerMethodField()
     entities = serializers.SerializerMethodField()  
     lock_message = serializers.SerializerMethodField()
+    good_audio_to_share = serializers.SerializerMethodField()
     class Meta:
         model = CallCH
         fields = [
@@ -41,6 +42,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             "is_locked",
             "lock_message",
             "entities",
+            "good_audio_to_share",
         ]
 
     def get_entities(self, obj):
@@ -80,6 +82,16 @@ class DashboardCallSerializer(serializers.ModelSerializer):
         ).first()
 
         return template.template_name if template else f"Template {obj.template_id}"
+    
+    def get_good_audio_to_share(self, obj):
+        calls_map = self.context.get("calls_map", {})
+        call = calls_map.get(obj.uuid)
+
+        if not call:
+            return None
+
+        return call.good_audio_to_share  # can be True / False / None
+    
     # ------------------------
     # STATUS DISPLAY
     # ------------------------

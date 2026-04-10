@@ -93,7 +93,7 @@ class Call(models.Model):
     consultant_comment = models.TextField(null=True, blank=True)
 
     status = models.SmallIntegerField(choices=STATUS_CHOICES, default=1, db_index=True)
-
+    good_audio_to_share = models.BooleanField(null=True, blank=True)
     tags = models.ManyToManyField(Tag, blank=True)
 
     rating_locked = models.BooleanField(default=False)
