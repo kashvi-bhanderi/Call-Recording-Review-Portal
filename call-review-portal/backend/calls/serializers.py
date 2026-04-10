@@ -32,6 +32,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             "organization_name",
             "schema_name",
             "phone_number",
+            "turns",
             "duration_display",
             "status_display",
             "overall_rating",
@@ -162,7 +163,7 @@ class DashboardCallSerializer(serializers.ModelSerializer):
             return "-"
         minutes = obj.duration // 60
         seconds = obj.duration % 60
-        return f"{minutes}m {seconds}s"
+        return f"{minutes:02}: {seconds:02}"
 
     def get_metrics(self, obj):
         calls_map = self.context.get("calls_map", {})

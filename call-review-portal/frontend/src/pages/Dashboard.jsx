@@ -615,6 +615,7 @@ const Dashboard = ({ role }) => {
   const leadColumns = [
     { key: "phone_number", label: "User Mobile No" },
     { key: "uuid", label: "Call UUID" },
+    { key: "turns", label: "Turns" },
     { key: "attempt_on_time_stamp", label: "Call Date & Time" },
     { key: "duration_display", label: "Duration" },
     { key: "status_display", label: "Review Status" },

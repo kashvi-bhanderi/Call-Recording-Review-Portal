@@ -236,7 +236,7 @@ const CallReview = () => {
                 <p>
                   <b>Duration:</b>{" "}
                   {metadata.duration != null
-                    ? `${Math.floor(metadata.duration / 60)}m ${metadata.duration % 60}s`
+                    ? `${Math.floor(metadata.duration / 60).toString().padStart(2, '0')}:${(metadata.duration % 60).toString().padStart(2, '0')}`
                     : "-"}
                 </p>
                 <p>

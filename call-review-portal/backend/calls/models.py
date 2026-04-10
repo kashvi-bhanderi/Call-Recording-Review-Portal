@@ -44,6 +44,7 @@ class CallCH(models.Model):
     language = models.TextField()
     attempt_on_time_stamp = models.DateTimeField()
     entities = models.JSONField(null=True, blank=True) 
+    turns = models.IntegerField(default=0)
     class Meta:
         managed = False
         db_table = "cai_call"
