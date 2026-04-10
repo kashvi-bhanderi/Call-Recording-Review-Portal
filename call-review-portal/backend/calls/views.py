@@ -29,7 +29,8 @@ from .s3_service import find_audio_file, generate_signed_url
 from django.conf import settings
 import json, ast
 import re
-
+import csv
+from django.http import HttpResponse
 from datetime import datetime, date, time
 
 
@@ -1323,3 +1324,35 @@ class CallTranscriptAPIView(APIView):
         ]
 
         return JsonResponse({"transcript": transcript}, status=200)
+    
+class ExportDashboardCallsCSV(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CookieJWTAuthentication]
+
+    def get(self, request):
+        # Reuse DashboardCallView logic
+        view = DashboardCallView()
+        view.request = request
+        view.args = ()
+        view.kwargs = {}
+
+        queryset = view.get_queryset()
+
+        # Apply django-filter (IMPORTANT)
+        filterset = DashboardCallFilter(request.GET, queryset=queryset)
+        queryset = filterset.qs
+
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="calls_export.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(["UUID", "Call Date Time"])
+
+        for call in queryset:
+            writer.writerow([
+                call.uuid,
+                call.attempt_on_time_stamp
+            ])
+
+        return response

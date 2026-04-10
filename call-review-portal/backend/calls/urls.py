@@ -5,7 +5,7 @@ from .views import (
 )
 from .views import DashboardCallView, CallFilterOptionsView
 from .views import SubmitCallReviewAPIView
-from .views import ConsultantCallDetailAPIView
+from .views import ConsultantCallDetailAPIView, ExportDashboardCallsCSV
 from .views import CallAudioAPIView, SelectableOrganizationsAPIView, SelectableTemplatesAPIView, SelectableEntitiesAPIView, SelectableEntityValuesAPIView, CallTranscriptAPIView
 urlpatterns = [
     path("dashboard/", DashboardCallView.as_view(), name="dashboard-calls"),
@@ -20,5 +20,6 @@ urlpatterns = [
     path("transcript/<str:call_uuid>/", CallTranscriptAPIView.as_view(), name="call-transcript"),
     path("selectable-entities/", SelectableEntitiesAPIView.as_view(), name="selectable-entities"),
     path("selectable-entity-values/", SelectableEntityValuesAPIView.as_view(), name="selectable-entity-values"),
+    path("export-csv/", ExportDashboardCallsCSV.as_view()),
 ]
 

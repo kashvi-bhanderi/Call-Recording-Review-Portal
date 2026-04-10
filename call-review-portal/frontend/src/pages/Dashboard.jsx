@@ -6,7 +6,7 @@ import DashboardHeader from "../components/DashboardHeader";
 import MiniAudioPlayer from "../components/MiniAudioPlayer";
 import StarRating from "../components/starrating";
 import toast from "react-hot-toast";
-
+import { FiDownload } from "react-icons/fi";
 const Dashboard = ({ role }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -464,6 +464,32 @@ const Dashboard = ({ role }) => {
     syncUrl(filters, newPage, sortBy);
     fetchCalls(filters, newPage, sortBy);
   };
+  const handleExport = async () => {
+    try {
+      const params = buildSearchParamsFromState(filters, page, sortBy);
+      params.set("ordering", sortBy);
+
+      const response = await axiosInstance.get("/calls/export-csv/", {
+        params,
+        responseType: "blob",
+      });
+
+
+      const blob = new Blob([response.data], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "calls_export.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast.error("Export failed");
+    }
+  };
 
   const handleReset = async () => {
     const resetFilters = {
@@ -917,13 +943,21 @@ const Dashboard = ({ role }) => {
           </div>
 
           <div className="filter-actions">
-             <button className="reset-btn" onClick={handleReset}>
-              Reset
-            </button>
+
             <button className="search-btn" onClick={handleSearch}>
               Search
             </button>
-           
+            <button className="reset-btn" onClick={handleReset}>
+              Reset
+            </button>
+            <button
+              className="export-btn"
+              onClick={handleExport}
+              disabled={!calls.length}
+            >
+              <FiDownload style={{ marginRight: "6px" }} />
+              Export
+            </button>
           </div>
         </div>
 
