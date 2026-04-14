@@ -363,6 +363,7 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
 }
 
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -570,4 +571,17 @@ tbody tr:hover {
     width: 100%;
     max-width: 220px;
   }
+}
+.share-btn {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  margin-left: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.share-btn:hover {
+  background-color: #45a049;
 }

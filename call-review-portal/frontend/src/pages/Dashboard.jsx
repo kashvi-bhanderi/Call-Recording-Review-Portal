@@ -35,6 +35,7 @@ const Dashboard = ({ role }) => {
   const [prevPageUrl, setPrevPageUrl] = useState(null);
   const [entityKeys, setEntityKeys] = useState([]);
   const [entityValueOptions, setEntityValueOptions] = useState({});
+  const [sharing, setSharing] = useState(false);
 
   const [filterOptions, setFilterOptions] = useState({
     languages: [],
@@ -259,6 +260,21 @@ const Dashboard = ({ role }) => {
     setAudioMap(newAudioMap);
   };
 
+  const handleShareToDrive = async () => {
+    try {
+      setSharing(true);
+
+      const res = await axiosInstance.post("/calls/upload-to-drive/");
+
+      toast.success(`Uploaded ${res.data.uploaded_count || 0} files to Drive`);
+
+    } catch (err) {
+      console.error("Share failed:", err);
+      toast.error("Upload to Google Drive failed");
+    } finally {
+      setSharing(false);
+    }
+  };
   /* ================= FETCH FILTER OPTIONS ================= */
   const fetchFilterOptions = async () => {
     try {
@@ -952,12 +968,11 @@ const Dashboard = ({ role }) => {
               Reset
             </button>
             <button
-              className="export-btn"
-              onClick={handleExport}
-              disabled={!calls.length}
+              className="share-btn"
+              onClick={handleShareToDrive}
+              disabled={sharing}
             >
-              <FiDownload style={{ marginRight: "6px" }} />
-              Export
+              {sharing ? "Uploading..." : "Share Good Audio"}
             </button>
           </div>
         </div>

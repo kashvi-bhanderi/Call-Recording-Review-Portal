@@ -6,17 +6,17 @@ SCOPES = ['https://www.googleapis.com/auth/drive.file']
 flow = InstalledAppFlow.from_client_secrets_file(
     'client_secret.json',
     SCOPES,
-    redirect_uri='urn:ietf:wg:oauth:2.0:oob'  # ✅ IMPORTANT FIX
+    redirect_uri='urn:ietf:wg:oauth:2.0:oob'  
 )
 
 # Step 1: Generate auth URL
 auth_url, _ = flow.authorization_url(prompt='consent')
 
-print("\n👉 Open this URL in your browser:\n")
+print("\n Open this URL in your browser:\n")
 print(auth_url)
 
 # Step 2: Get code from user
-code = input("\n👉 Paste the authorization code here: ")
+code = input("\n Paste the authorization code here: ")
 
 # Step 3: Exchange code for token
 flow.fetch_token(code=code)
@@ -27,4 +27,4 @@ creds = flow.credentials
 with open('token.pickle', 'wb') as token:
     pickle.dump(creds, token)
 
-print("\n✅ Token saved successfully!")
+print("\n Token saved successfully!")

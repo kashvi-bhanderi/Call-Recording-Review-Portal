@@ -1429,5 +1429,6 @@ class UploadGoodAudioToDriveAPIView(APIView):
 
         return Response({
             "message": "Upload completed",
+            "uploaded_count": len(uploaded),
             "uploaded": uploaded
         })
