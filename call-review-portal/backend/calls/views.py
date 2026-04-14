@@ -32,8 +32,8 @@ import re
 import csv
 from django.http import HttpResponse
 from datetime import datetime, date, time
-
-
+from .drive_upload import check_file_exists
+from .drive_service import get_drive_service
 def normalize_bool(value):
     """
     Convert common truthy/falsey values into Python bool.
@@ -1392,13 +1392,13 @@ class UploadGoodAudioToDriveAPIView(APIView):
         from .s3_service import find_audio_file
         from .drive_upload import upload_file_to_drive
         from .s3_download import download_s3_file
-
+        service = get_drive_service()
         bucket = settings.AWS_STORAGE_BUCKET_NAME
 
         calls = Call.objects.filter(good_audio_to_share=True)
 
         uploaded = []
-
+        uploaded_count = 0
         for call in calls:
             try:
                 ch_call = CallCH.objects.using("clickhouse").get(uuid=call.uuid)
@@ -1409,6 +1409,17 @@ class UploadGoodAudioToDriveAPIView(APIView):
                 audio_key = find_audio_file(bucket, prefix)
 
                 if not audio_key:
+                    continue
+                
+                file_name = f"{call.uuid}.wav"
+
+                existing_file = check_file_exists(service, file_name)
+                if existing_file:
+                    uploaded.append({
+                        "uuid": call.uuid,
+                        "drive_file_id": existing_file["id"],
+                        "status": "already_exists"
+                    })
                     continue
 
                 # Download from S3
@@ -1424,12 +1435,12 @@ class UploadGoodAudioToDriveAPIView(APIView):
                     "uuid": call.uuid,
                     "drive_file_id": file_id
                 })
-
+                uploaded_count += 1
             except Exception as e:
                 print("Error:", e)
 
         return Response({
             "message": "Upload completed",
-            "uploaded_count": len(uploaded),
+            "uploaded_count": uploaded_count,
             "uploaded": uploaded
         })

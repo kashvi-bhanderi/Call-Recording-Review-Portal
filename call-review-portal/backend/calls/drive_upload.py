@@ -19,3 +19,23 @@ def upload_file_to_drive(file_path, filename):
     ).execute()
 
     return file.get('id')
+
+def check_file_exists(service, filename):
+    """
+    Check if file already exists in target Drive folder.
+    """
+    query = (
+        f"name = '{filename}' "
+        f"and '{settings.GOOGLE_DRIVE_FOLDER_ID}' in parents "
+        f"and trashed = false"
+    )
+
+    response = service.files().list(
+        q=query,
+        spaces='drive',
+        fields='files(id, name)',
+        pageSize=1
+    ).execute()
+
+    files = response.get('files', [])
+    return files[0] if files else None
