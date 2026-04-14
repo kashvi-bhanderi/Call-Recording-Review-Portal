@@ -1383,3 +1383,51 @@ class ExportDashboardCallsCSV(APIView):
             ])
 
         return response
+
+class UploadGoodAudioToDriveAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from .s3_service import find_audio_file
+        from .drive_upload import upload_file_to_drive
+        from .s3_download import download_s3_file
+
+        bucket = settings.AWS_STORAGE_BUCKET_NAME
+
+        calls = Call.objects.filter(good_audio_to_share=True)
+
+        uploaded = []
+
+        for call in calls:
+            try:
+                ch_call = CallCH.objects.using("clickhouse").get(uuid=call.uuid)
+
+                ts = ch_call.attempt_on_time_stamp
+                prefix = f"media/{ch_call.schema_name}/freeswitch/{ts.strftime('%Y')}/{ts.strftime('%m')}/{ts.strftime('%d')}/{call.uuid}/"
+
+                audio_key = find_audio_file(bucket, prefix)
+
+                if not audio_key:
+                    continue
+
+                # Download from S3
+                local_path = download_s3_file(bucket, audio_key)
+
+                # Upload to Drive
+                file_id = upload_file_to_drive(
+                    local_path,
+                    f"{call.uuid}.wav"
+                )
+
+                uploaded.append({
+                    "uuid": call.uuid,
+                    "drive_file_id": file_id
+                })
+
+            except Exception as e:
+                print("Error:", e)
+
+        return Response({
+            "message": "Upload completed",
+            "uploaded": uploaded
+        })

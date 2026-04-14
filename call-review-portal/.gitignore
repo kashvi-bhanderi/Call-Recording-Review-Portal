@@ -101,3 +101,7 @@ gunicorn.log
 
 *.swp
 *.swo
+
+# Google OAuth secrets
+backend/client_secret.json
+backend/token.pickle
