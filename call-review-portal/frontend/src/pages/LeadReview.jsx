@@ -341,17 +341,7 @@ useEffect(() => {
                   <option value={3}>Production Issue</option>
                   <option value={4}>Approved</option>
                 </select>
-                <div className="metric">
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <input
-                      type="checkbox"
-                      checked={goodAudio}
-                      disabled={disableInputs}
-                      onChange={(e) => setGoodAudio(e.target.checked)}
-                    />
-                    Good audio (shareable)
-                  </label>
-                </div>
+              
                 <select
                   multiple
                   value={tags}
@@ -411,6 +401,9 @@ useEffect(() => {
                 )}
 
                 <textarea value={consultant.comment || ""} readOnly />
+               <div className={`audio-badge ${goodAudio ? "good" : "bad"}`}>
+  {goodAudio ? "✅ Good Audio" : ""}
+</div>
 
                 <p>Submitted: {consultant.timestamp || "-"}</p>
               </div>

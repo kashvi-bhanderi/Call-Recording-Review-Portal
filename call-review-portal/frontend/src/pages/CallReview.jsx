@@ -27,6 +27,7 @@ const CallReview = () => {
   const [isEditable, setIsEditable] = useState(true);
   const [lockMessage, setLockMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [goodAudio, setGoodAudio] = useState(false);
 
   const fetchCall = useCallback(async () => {
     setLoading(true);
@@ -40,6 +41,7 @@ const CallReview = () => {
       setComments(data.comments || "");
       setLeadMetrics(data.lead_metrics || []);
       setLeadComment(data.lead_comment || "");
+      setGoodAudio(data.metadata?.good_audio_to_share || false);
 
       const rated = (data.metrics || []).some(
         (m) => m.value !== null && m.value !== ""
@@ -123,6 +125,7 @@ const CallReview = () => {
         call_uuid: uuid,
         ratings,
         comments,
+        good_audio_to_share: goodAudio, 
       });
 
       toast.success(
@@ -313,7 +316,17 @@ const CallReview = () => {
                   disabled={disableInputs}
                   onChange={(e) => setComments(e.target.value)}
                 />
-
+                <div className="metric">
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="checkbox"
+                      checked={goodAudio}
+                      disabled={disableInputs}
+                      onChange={(e) => setGoodAudio(e.target.checked)}
+                    />
+                    Good audio (shareable)
+                  </label>
+                </div>
                 {!isSubmitted && isEditable && (
                   <button className="submit-btn" onClick={submitReview}>
                     Submit

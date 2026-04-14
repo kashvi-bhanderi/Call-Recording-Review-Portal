@@ -787,6 +787,7 @@ class LeadCallDetailAPIView(APIView):
             "consultant_review": {
                 "ratings": consultant_list,
                 "comment": call.consultant_comment,
+                "good_audio_to_share": call.good_audio_to_share,
                 "timestamp": call.rated_at
             },
             "metrics": [
