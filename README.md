@@ -76,16 +76,22 @@ This system enables Consultants and Leads to collaboratively review call recordi
    ```bash
    cd project-call-review-portal/call-review-portal/
    ```
-2. Start Services
+2. setup for google drive upload 
+   ```bash
+   python backend/oauth_setup.py
+   ```
+   - it will generate token.pickle file
+   - add this file client_secret.json into backend folder, for which you have to set oauth credintial for a project, [found here](https://console.cloud.google.com/welcome/new)
+3. Start Services
 
    ```bash
    docker-compose up 
    ```
-3. if clickhouse port bind issue then use below command
+4. if clickhouse port bind issue then use below command
      ```bash
      sudo systemctl stop clickhouse-server
      ```
-4. Stop Services
+5. Stop Services
       ``` bash
       docker-compose down
       ```
